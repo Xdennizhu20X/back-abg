@@ -74,8 +74,8 @@ const syncModels = async () => {
     await Transporte.sync({ alter: true });
     await FirmaDigital.sync({ alter: true });
     await Reporte.sync({ alter: true });
-    // ¡Agrega esta línea para aves!
     await Ave.sync({ alter: true });
+    await Validacion.sync({ alter: true });  // <-- Agregado para sincronizar Validacion
 
     console.log('Modelos sincronizados correctamente');
   } catch (error) {
