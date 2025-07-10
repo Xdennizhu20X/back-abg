@@ -1,14 +1,13 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { syncDatabase } = require('./config/database');
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const authRoutes = require('./routes/auth');
 const movilizacionRoutes = require('./routes/movilizaciones');
+const pdfRoutes = require('./routes/pdfRoutes'); // ✅ nuevo
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -17,23 +16,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/movilizaciones', movilizacionRoutes);
+app.use('/api/pdf', pdfRoutes); // ✅ nuevo
 
-// Ruta de prueba
 app.get('/', (req, res) => {
   res.json({ message: 'API de Movilización de Ganado' });
 });
 
-// Manejo de errores
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Error interno del servidor',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
+  res.status(500).json({ success: false, message: 'Error interno del servidor' });
 });
 
-// Iniciar servidor
 const startServer = async () => {
   try {
     await syncDatabase();
@@ -47,4 +40,4 @@ const startServer = async () => {
   }
 };
 
-startServer(); 
+startServer();
