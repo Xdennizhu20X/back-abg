@@ -419,9 +419,11 @@ const getAnimalesByMovilizacionId = async (req, res) => {
     // Obtener animales asociados
     const animales = await Animal.findAll({
       where: { movilizacion_id: id },
-      attributes: ['id', 'especie', 'sexo', 'edad', 'identificacion', 'observaciones'],
+      attributes: ['id', 'especie', 'sexo', 'edad', 'identificador', 'observaciones'],
       order: [['especie', 'ASC'], ['edad', 'DESC']]
     });
+
+    // Obtener aves asociadas
 
     res.json({
       success: true,
