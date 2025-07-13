@@ -1,10 +1,12 @@
 const express = require('express');
 const cors = require('cors');
-const { syncDatabase } = require('./config/database');
+const { syncDatabase, sequelize } = require('./config/database'); 
+const keepDatabaseAlive = require('./utils/dbKeepAlive'); 
+
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const authRoutes = require('./routes/auth');
 const movilizacionRoutes = require('./routes/movilizaciones');
-const pdfRoutes = require('./routes/pdfRoutes'); // ✅ nuevo
+const pdfRoutes = require('./routes/pdfRoutes');
 
 const app = express();
 
@@ -12,11 +14,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rutas
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/movilizaciones', movilizacionRoutes);
-app.use('/api/pdf', pdfRoutes); // ✅ nuevo
+app.use('/api/pdf', pdfRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API de Movilización de Ganado' });
@@ -30,6 +31,11 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await syncDatabase();
+
+    // Activar keep-alive solo si es necesario
+    if (process.env.NODE_ENV === 'production') {
+      keepDatabaseAlive(sequelize); // 👈 llamada al keep-alive
+    }
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
       console.log(`Servidor corriendo en el puerto ${PORT}`);
