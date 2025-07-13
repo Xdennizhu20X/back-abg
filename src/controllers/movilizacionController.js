@@ -402,6 +402,43 @@ const registrarValidacion = async (req, res) => {
   }
 };
 
+// controllers/movilizacionController.js
+const getAnimalesByMovilizacionId = async (req, res) => {
+  try {
+    const { id } = req.params; // ID de la movilización
+
+    // Verificar si existe la movilización
+    const movilizacion = await Movilizacion.findByPk(id);
+    if (!movilizacion) {
+      return res.status(404).json({
+        success: false,
+        message: 'Movilización no encontrada'
+      });
+    }
+
+    // Obtener animales asociados
+    const animales = await Animal.findAll({
+      where: { movilizacion_id: id },
+      attributes: ['id', 'especie', 'sexo', 'edad', 'identificacion', 'observaciones'],
+      order: [['especie', 'ASC'], ['edad', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      movilizacion_id: id,
+      count: animales.length,
+      animales
+    });
+
+  } catch (error) {
+    console.error('Error al obtener animales:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener los animales',
+      error: error.message
+    });
+  }
+};
 
 
 module.exports = {
@@ -412,5 +449,6 @@ module.exports = {
   filtrarMovilizaciones,
   registrarValidacion,
   rechazarMovilizacion,
-  getTotalPendientes 
+  getTotalPendientes,
+  getAnimalesByMovilizacionId 
 };

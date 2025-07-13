@@ -8,18 +8,19 @@ const {
   filtrarMovilizaciones,
   registrarValidacion,
   rechazarMovilizacion,
-  getTotalPendientes
+  getTotalPendientes,
+  getAnimalesByMovilizacionId
 } = require('../controllers/movilizacionController');
 
 const { verificarToken, verificarRol } = require('../middleware/auth');
 
-// ✅ Ganadero: Registrar una movilización completa (sin validez ni firmas)
+// Ganadero: Registrar una movilización completa (sin validez ni firmas)
 router.post('/registro-completo', verificarToken, verificarRol(['ganadero']), registrarMovilizacionCompleta);
 
-// ✅ Ganadero: Ver sus propias movilizaciones
+// Ganadero: Ver sus propias movilizaciones
 router.get('/mis-movilizaciones', verificarToken, verificarRol(['ganadero']), getMovilizaciones);
 
-// ✅ Técnico y Admin: Ver todas las movilizaciones
+// Técnico y Admin: Ver todas las movilizaciones
 router.get('/', verificarToken, verificarRol(['tecnico', 'admin']), getMovilizaciones);
 
 router.get('/pendientes/count', getTotalPendientes);
@@ -32,13 +33,13 @@ router.post('/:id/validacion', verificarToken, registrarValidacion);
 router.put('/:id/rechazar', verificarToken, rechazarMovilizacion);
 
 
-// ✅ Todos: Ver una movilización específica
+// Todos: Ver una movilización específica
 router.get('/:id', verificarToken, verificarRol(['ganadero', 'tecnico', 'admin']), getMovilizacionById);
 
-// ✅ Técnico y Admin: Actualizar estado y observaciones técnicas
+// Técnico y Admin: Actualizar estado y observaciones técnicas
 router.patch('/:id', verificarToken, verificarRol(['tecnico', 'admin']), updateMovilizacion);
 
-
+router.get('/:id/animales', getAnimalesByMovilizacionId);
 
 
 module.exports = router;
