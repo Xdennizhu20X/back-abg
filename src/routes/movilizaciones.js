@@ -36,7 +36,7 @@ router.get('/filtrar', verificarToken, filtrarMovilizaciones);
 router.get('/:id', verificarToken, getMovilizacionById);
 
 // Actualizar estado (alerta/finalizado)
-router.patch('/:id/estado', verificarToken, actualizarEstadoMovilizacion);
+router.put('/:id/estado', verificarToken, actualizarEstadoMovilizacion);
 
 // Obtener animales de una movilización
 router.get('/:id/animales', verificarToken, getAnimalesByMovilizacionId);
