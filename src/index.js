@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cron = require('node-cron');
 const { syncDatabase, sequelize } = require('./config/database'); 
 const keepDatabaseAlive = require('./utils/dbKeepAlive'); 
 
@@ -7,6 +8,7 @@ const usuarioRoutes = require('./routes/usuarioRoutes');
 const authRoutes = require('./routes/auth');
 const movilizacionRoutes = require('./routes/movilizaciones');
 const pdfRoutes = require('./routes/pdfRoutes');
+const { actualizarEstadosAutomaticos } = require('./controllers/movilizacionController');
 
 const app = express();
 
@@ -26,6 +28,11 @@ app.get('/', (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ success: false, message: 'Error interno del servidor' });
+});
+
+cron.schedule('0 * * * *', () => {
+  console.log('Ejecutando tarea para actualizar estados a 72 horas...');
+  actualizarEstadosAutomaticos();
 });
 
 const startServer = async () => {

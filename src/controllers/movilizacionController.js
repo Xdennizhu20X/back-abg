@@ -1,5 +1,6 @@
-const { Movilizacion, Animal, Ave, Transporte, Predio, Usuario, Validacion  } = require('../models');
+const { Movilizacion, Animal, Ave, Transporte, Predio, Usuario } = require('../models');
 const { Op } = require('sequelize');
+const { sendEmail } = require('../utils/mailer');
 
 const registrarMovilizacionCompleta = async (req, res) => {
   const t = await Movilizacion.sequelize.transaction();
@@ -135,13 +136,7 @@ const getMovilizaciones = async (req, res) => {
         { model: Transporte },
         { model: Predio, as: 'predio_origen' },
         { model: Predio, as: 'predio_destino' },
-        { model: Usuario, attributes: ['id', 'nombre', 'email'] },
-        {
-          model: Validacion, // 👈 Agregado aquí
-          attributes: {
-            exclude: ['createdAt', 'updatedAt'] // opcional si quieres excluir estos campos
-          }
-        }
+        { model: Usuario, attributes: ['id', 'nombre', 'email'] }
       ],
       order: [['fecha_solicitud', 'DESC']]
     });
@@ -176,12 +171,6 @@ const getMovilizacionById = async (req, res) => {
         {
           model: Usuario,
           attributes: ['id', 'nombre', 'email', 'ci', 'telefono']
-        },
-        {
-          model: Validacion, // 👈 Agregado aquí
-          attributes: {
-            exclude: ['createdAt', 'updatedAt'] // opcional si quieres excluir estos campos
-          }
         }
       ]
     });
@@ -195,87 +184,6 @@ const getMovilizacionById = async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 };
-
-
-const updateMovilizacion = async (req, res) => {
-  try {
-    const { estado, observaciones_tecnico } = req.body;
-    const movilizacion = await Movilizacion.findByPk(req.params.id);
-
-    if (!movilizacion) {
-      return res.status(404).json({ error: 'Movilización no encontrada.' });
-    }
-
-    if (req.usuario.rol !== 'tecnico' && req.usuario.rol !== 'admin') {
-      return res.status(403).json({ error: 'No tiene permiso para actualizar movilizaciones.' });
-    }
-
-    await movilizacion.update({
-      estado,
-      observaciones_tecnico,
-      tecnico_id: req.usuario.id,
-      fecha_aprobacion: estado === 'aprobado' ? new Date() : null
-    });
-
-    res.json(movilizacion);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-const rechazarMovilizacion = async (req, res) => {
-  const t = await Validacion.sequelize.transaction();
-
-  try {
-    const { observaciones_tecnico, firma_tecnico } = req.body;
-    const movilizacion = await Movilizacion.findByPk(req.params.id);
-
-    if (!movilizacion) {
-      await t.rollback();
-      return res.status(404).json({ error: 'Movilización no encontrada.' });
-    }
-
-    // Verificar permisos (solo técnico o admin puede rechazar)
-    if (req.usuario.rol !== 'tecnico' && req.usuario.rol !== 'admin') {
-      await t.rollback();
-      return res.status(403).json({ error: 'No tiene permiso para rechazar movilizaciones.' });
-    }
-
-    const nombreTecnico = req.usuario.nombre || 'Técnico Desconocido';
-
-    // Actualizar movilización a "rechazado"
-    await movilizacion.update({
-      estado: 'rechazado',
-      observaciones_tecnico,
-      tecnico_id: req.usuario.id,
-      fecha_aprobacion: null
-    }, { transaction: t });
-
-    // Registrar validación incluso si fue rechazada
-    await Validacion.create({
-      movilizacion_id: movilizacion.id,
-      tiempo_validez: null,
-      hora_inicio: null,
-      hora_fin: null,
-      firma_tecnico,
-      nombre_tecnico: nombreTecnico,
-      fecha_emision: new Date()
-    }, { transaction: t });
-
-    await t.commit();
-
-    res.json({
-      success: true,
-      message: 'Movilización rechazada y validación registrada',
-      movilizacion
-    });
-
-  } catch (error) {
-    await t.rollback();
-    res.status(400).json({ success: false, error: error.message });
-  }
-};
-
 
 const filtrarMovilizaciones = async (req, res) => {
   try {
@@ -294,7 +202,7 @@ const filtrarMovilizaciones = async (req, res) => {
 
     if (nombre) {
       usuarioWhere.nombre = {
-        [Op.iLike]: `%${nombre}%` // para búsquedas parciales sin distinción entre mayúsculas y minúsculas
+        [Op.iLike]: `%${nombre}%`
       };
     }
 
@@ -310,12 +218,6 @@ const filtrarMovilizaciones = async (req, res) => {
           model: Usuario,
           attributes: ['id', 'nombre', 'email'],
           where: Object.keys(usuarioWhere).length ? usuarioWhere : undefined
-        },
-        {
-          model: Validacion, // 👈 Agregado aquí
-          attributes: {
-            exclude: ['createdAt', 'updatedAt'] // opcional si quieres excluir estos campos
-          }
         }
       ],
       order: [['fecha_solicitud', 'DESC']]
@@ -328,86 +230,10 @@ const filtrarMovilizaciones = async (req, res) => {
   }
 };
 
-const registrarValidacion = async (req, res) => {
-  const t = await Validacion.sequelize.transaction();
-
-  try {
-    const movilizacion_id = req.params.id;
-    const {
-      tiempo_validez,
-      hora_inicio,
-      hora_fin,
-      firma_tecnico
-    } = req.body;
-
-    // Validar rol
-    if (!req.usuario || (req.usuario.rol !== 'tecnico' && req.usuario.rol !== 'admin')) {
-      await t.rollback();
-      return res.status(403).json({ error: 'No autorizado para validar esta movilización.' });
-    }
-
-    const nombreTecnico = req.usuario.nombre || 'Técnico Desconocido';
-
-    // Verificar que la movilización exista
-    const movilizacion = await Movilizacion.findByPk(movilizacion_id);
-    if (!movilizacion) {
-      await t.rollback();
-      return res.status(404).json({ error: 'Movilización no encontrada' });
-    }
-
-    // Buscar si ya existe validación para esa movilización
-    let validacion = await Validacion.findOne({ where: { movilizacion_id } });
-
-    if (validacion) {
-      await validacion.update({
-        tiempo_validez,
-        hora_inicio,
-        hora_fin,
-        firma_tecnico,
-        nombre_tecnico: nombreTecnico,
-        fecha_emision: new Date()
-      }, { transaction: t });
-
-      await movilizacion.update({ estado: 'aprobado' }, { transaction: t });
-    } else {
-      validacion = await Validacion.create({
-        movilizacion_id,
-        tiempo_validez,
-        hora_inicio,
-        hora_fin,
-        firma_tecnico,
-        nombre_tecnico: nombreTecnico,
-        fecha_emision: new Date()
-      }, { transaction: t });
-
-      await movilizacion.update({ estado: 'aprobado' }, { transaction: t });
-    }
-
-    await t.commit();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Validación registrada correctamente',
-      validacion
-    });
-
-  } catch (error) {
-    await t.rollback();
-    console.error('Error en registrar validación:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error al registrar la validación',
-      error: error.message
-    });
-  }
-};
-
-// controllers/movilizacionController.js
 const getAnimalesByMovilizacionId = async (req, res) => {
   try {
-    const { id } = req.params; // ID de la movilización
+    const { id } = req.params;
 
-    // Verificar si existe la movilización
     const movilizacion = await Movilizacion.findByPk(id);
     if (!movilizacion) {
       return res.status(404).json({
@@ -416,14 +242,11 @@ const getAnimalesByMovilizacionId = async (req, res) => {
       });
     }
 
-    // Obtener animales asociados
     const animales = await Animal.findAll({
       where: { movilizacion_id: id },
       attributes: ['id', 'especie', 'sexo', 'edad', 'identificador', 'observaciones'],
       order: [['especie', 'ASC'], ['edad', 'DESC']]
     });
-
-    // Obtener aves asociadas
 
     res.json({
       success: true,
@@ -442,15 +265,160 @@ const getAnimalesByMovilizacionId = async (req, res) => {
   }
 };
 
+const actualizarEstadoMovilizacion = async (req, res) => {
+  try {
+    const { id, nuevoEstado } = req.body;
+    
+    if (!['finalizado', 'alerta'].includes(nuevoEstado)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Solo se permite cambiar a "alerta" o "finalizado"' 
+      });
+    }
+    
+    const movilizacion = await Movilizacion.findByPk(id, {
+      include: [
+        { model: Usuario, attributes: ['email', 'nombre'] },
+        { model: Predio, as: 'predio_origen', attributes: ['nombre'] },
+        { model: Predio, as: 'predio_destino', attributes: ['nombre'] }
+      ]
+    });
+    
+    if (!movilizacion) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Movilización no encontrada' 
+      });
+    }
+
+    if (movilizacion.estado === 'finalizado') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No se puede modificar una movilización finalizada' 
+      });
+    }
+
+    const updateData = {
+      estado: nuevoEstado,
+      ...(nuevoEstado === 'finalizado' && { 
+        fecha_finalizacion: new Date(),
+        ...(movilizacion.estado === 'alerta' && { fecha_resolucion_alerta: new Date() })
+      }),
+      ...(nuevoEstado === 'alerta' && { fecha_alerta: new Date() })
+    };
+
+    await movilizacion.update(updateData);
+
+    // Enviar notificación por email
+    const usuarioEmail = movilizacion.Usuario.email;
+    const asunto = `Movilización ${nuevoEstado}`;
+    let mensaje = '';
+
+    if (nuevoEstado === 'alerta') {
+      mensaje = `
+        <h2>Alerta en Movilización</h2>
+        <p>La movilización desde ${movilizacion.predio_origen.nombre} hacia 
+        ${movilizacion.predio_destino.nombre} ha sido marcada como ALERTA.</p>
+        <p>Fecha: ${new Date().toLocaleString()}</p>
+        <p>Por favor, tome las acciones necesarias.</p>
+      `;
+    } else {
+      mensaje = `
+        <h2>Movilización Finalizada</h2>
+        <p>La movilización desde ${movilizacion.predio_origen.nombre} hacia 
+        ${movilizacion.predio_destino.nombre} ha sido FINALIZADA.</p>
+        <p>Fecha de finalización: ${new Date().toLocaleString()}</p>
+      `;
+    }
+
+    await sendEmail(usuarioEmail, asunto, mensaje);
+
+    res.json({ 
+      success: true,
+      message: `Estado actualizado a ${nuevoEstado}`,
+      movilizacion 
+    });
+  } catch (error) {
+    console.error('Error al actualizar estado:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al actualizar estado', 
+      error: error.message 
+    });
+  }
+};
+
+const actualizarEstadosAutomaticos = async () => {
+  try {
+    const hace72Horas = new Date(Date.now() - 72 * 60 * 60 * 1000);
+
+    // Obtener movilizaciones a actualizar con información del usuario
+    const movilizaciones = await Movilizacion.findAll({
+      where: {
+        estado: 'pendiente',
+        fecha_solicitud: { [Op.lte]: hace72Horas }
+      },
+      include: [
+        { model: Usuario, attributes: ['email', 'nombre'] },
+        { model: Predio, as: 'predio_origen', attributes: ['nombre'] },
+        { model: Predio, as: 'predio_destino', attributes: ['nombre'] }
+      ]
+    });
+
+    const [updated] = await Movilizacion.update(
+      { 
+        estado: 'alerta',
+        fecha_alerta: new Date()
+      },
+      {
+        where: {
+          estado: 'pendiente',
+          fecha_solicitud: { [Op.lte]: hace72Horas }
+        }
+      }
+    );
+
+    if (updated > 0) {
+      console.log(`✔ ${updated} movilizaciones actualizadas a 'alerta' automáticamente`);
+      
+      // Enviar emails de notificación
+      for (const mov of movilizaciones) {
+        const asunto = 'Alerta Automática: Movilización Pendiente por 72 horas';
+        const mensaje = `
+          <h2>Alerta Automática</h2>
+          <p>La movilización desde ${mov.predio_origen.nombre} hacia 
+          ${mov.predio_destino.nombre} ha sido marcada como ALERTA automáticamente 
+          por haber permanecido más de 72 horas en estado pendiente.</p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+          <p>Por favor, tome las acciones necesarias.</p>
+        `;
+        
+        await sendEmail(mov.Usuario.email, asunto, mensaje);
+      }
+    }
+
+    return {
+      success: true,
+      count: updated,
+      message: `Se actualizaron ${updated} movilizaciones a estado 'alerta'`
+    };
+  } catch (error) {
+    console.error('✖ Error actualizando estados automáticamente:', error);
+    return {
+      success: false,
+      message: 'Error actualizando estados automáticamente',
+      error: error.message
+    };
+  }
+};
 
 module.exports = {
   registrarMovilizacionCompleta,
   getMovilizaciones,
   getMovilizacionById,
-  updateMovilizacion,
   filtrarMovilizaciones,
-  registrarValidacion,
-  rechazarMovilizacion,
   getTotalPendientes,
-  getAnimalesByMovilizacionId 
+  getAnimalesByMovilizacionId,
+  actualizarEstadoMovilizacion,
+  actualizarEstadosAutomaticos
 };

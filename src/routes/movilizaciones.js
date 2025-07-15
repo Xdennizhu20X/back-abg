@@ -4,42 +4,44 @@ const {
   registrarMovilizacionCompleta,
   getMovilizaciones,
   getMovilizacionById,
-  updateMovilizacion,
   filtrarMovilizaciones,
-  registrarValidacion,
-  rechazarMovilizacion,
   getTotalPendientes,
-  getAnimalesByMovilizacionId
+  getAnimalesByMovilizacionId,
+  actualizarEstadoMovilizacion,
+  actualizarEstadosAutomaticos
 } = require('../controllers/movilizacionController');
 
 const { verificarToken, verificarRol } = require('../middleware/auth');
 
-// Ganadero: Registrar una movilización completa (sin validez ni firmas)
+// Registrar una movilización completa
 router.post('/registro-completo', verificarToken, verificarRol(['ganadero']), registrarMovilizacionCompleta);
 
-// Ganadero: Ver sus propias movilizaciones
-router.get('/mis-movilizaciones', verificarToken, verificarRol(['ganadero']), getMovilizaciones);
+// Ver movilizaciones (dependiendo del rol)
+router.get('/', verificarToken, (req, res, next) => {
+  // Ganaderos solo ven sus propias movilizaciones
+  if (req.usuario.rol === 'ganadero') {
+    req.query.usuario_id = req.usuario.id;
+  }
+  // Técnicos y admins ven todas
+  return getMovilizaciones(req, res, next);
+});
 
-// Técnico y Admin: Ver todas las movilizaciones
-router.get('/', verificarToken, verificarRol(['tecnico', 'admin']), getMovilizaciones);
+// Contador de movilizaciones pendientes
+router.get('/pendientes/count', verificarToken, getTotalPendientes);
 
-router.get('/pendientes/count', getTotalPendientes);
-
-
+// Filtrar movilizaciones
 router.get('/filtrar', verificarToken, filtrarMovilizaciones);
 
-router.post('/:id/validacion', verificarToken, registrarValidacion);
+// Ver una movilización específica
+router.get('/:id', verificarToken, getMovilizacionById);
 
-router.put('/:id/rechazar', verificarToken, rechazarMovilizacion);
+// Actualizar estado (alerta/finalizado)
+router.patch('/:id/estado', verificarToken, actualizarEstadoMovilizacion);
 
+// Obtener animales de una movilización
+router.get('/:id/animales', verificarToken, getAnimalesByMovilizacionId);
 
-// Todos: Ver una movilización específica
-router.get('/:id', verificarToken, verificarRol(['ganadero', 'tecnico', 'admin']), getMovilizacionById);
-
-// Técnico y Admin: Actualizar estado y observaciones técnicas
-router.patch('/:id', verificarToken, verificarRol(['tecnico', 'admin']), updateMovilizacion);
-
-router.get('/:id/animales', getAnimalesByMovilizacionId);
-
+// Ruta para uso interno (cron job) - sin autenticación
+router.post('/actualizar-estados-automaticos', actualizarEstadosAutomaticos);
 
 module.exports = router;
