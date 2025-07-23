@@ -420,7 +420,7 @@ const generarCertificadoMovilizacion = async (req, res) => {
     
     const movilizacion = await Movilizacion.findByPk(id, {
       include: [
-        { model: Animal, as: 'Animals' }, // Asegúrate de usar el alias correcto
+        { model: Animal, as: 'Animals' },
         { model: Ave, as: 'Aves' },
         { model: Transporte },
         { model: Predio, as: 'predio_origen' },
@@ -433,28 +433,25 @@ const generarCertificadoMovilizacion = async (req, res) => {
       return res.status(404).json({ error: 'Movilización no encontrada' });
     }
 
-    // Transformar datos al formato que espera el PDF
     const datosCertificado = transformarDatosParaCertificado(movilizacion);
-    console.log('Datos para PDF:', JSON.stringify(datosCertificado, null, 2));
 
     // Generar PDF
     const pdfBytes = await generarCertificadoPDF(datosCertificado);
     
-    // Guardar temporalmente para diagnóstico
-    fs.writeFileSync(`temp_certificado_${id}.pdf`, pdfBytes);
-    console.log('PDF guardado temporalmente');
+    // Elimina el guardado temporal para diagnóstico (puede causar problemas)
+    // fs.writeFileSync(`certificado_${id}.pdf`, pdfBytes);
 
-    // Enviar respuesta
+    // Configurar headers correctamente
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="certificado_${id}.pdf"`,
-      'Content-Length': pdfBytes.length,
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0'
     });
     
-    res.send(pdfBytes);
+    // Enviar el PDF directamente
+    res.send(Buffer.from(pdfBytes));
 
   } catch (error) {
     console.error('Error al generar certificado:', error);
