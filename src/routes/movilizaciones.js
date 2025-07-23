@@ -8,7 +8,8 @@ const {
   getTotalPendientes,
   getAnimalesByMovilizacionId,
   actualizarEstadoMovilizacion,
-  actualizarEstadosAutomaticos
+  actualizarEstadosAutomaticos,
+  generarCertificadoMovilizacion
 } = require('../controllers/movilizacionController');
 
 const { verificarToken, verificarRol } = require('../middleware/auth');
@@ -43,5 +44,9 @@ router.get('/:id/animales', verificarToken, getAnimalesByMovilizacionId);
 
 // Ruta para uso interno (cron job) - sin autenticación
 router.post('/actualizar-estados-automaticos', actualizarEstadosAutomaticos);
+
+// Agrega esta ruta al router de movilizaciones
+router.get('/:id/certificado', generarCertificadoMovilizacion);
+
 
 module.exports = router;

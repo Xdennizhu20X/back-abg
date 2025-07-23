@@ -1,5 +1,8 @@
 const { Movilizacion, Animal, Ave, Transporte, Predio, Usuario } = require('../models');
+const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { transformarDatosParaCertificado } = require('../helpers/movilizacion.helpers');
 const { Op } = require('sequelize');
+const fs = require('fs'); // Agrega esta línea con las otras importaciones
 const { sendEmail } = require('../utils/mailer');
 
 const registrarMovilizacionCompleta = async (req, res) => {
@@ -411,6 +414,57 @@ const actualizarEstadosAutomaticos = async () => {
     };
   }
 };
+const generarCertificadoMovilizacion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const movilizacion = await Movilizacion.findByPk(id, {
+      include: [
+        { model: Animal, as: 'Animals' }, // Asegúrate de usar el alias correcto
+        { model: Ave, as: 'Aves' },
+        { model: Transporte },
+        { model: Predio, as: 'predio_origen' },
+        { model: Predio, as: 'predio_destino' },
+        { model: Usuario },
+        { model: Validacion }
+      ]
+    });
+
+    if (!movilizacion) {
+      return res.status(404).json({ error: 'Movilización no encontrada' });
+    }
+
+    // Transformar datos al formato que espera el PDF
+    const datosCertificado = transformarDatosParaCertificado(movilizacion);
+    console.log('Datos para PDF:', JSON.stringify(datosCertificado, null, 2));
+
+    // Generar PDF
+    const pdfBytes = await generarCertificadoPDF(datosCertificado);
+    
+    // Guardar temporalmente para diagnóstico
+    fs.writeFileSync(`temp_certificado_${id}.pdf`, pdfBytes);
+    console.log('PDF guardado temporalmente');
+
+    // Enviar respuesta
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="certificado_${id}.pdf"`,
+      'Content-Length': pdfBytes.length,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
+    res.send(pdfBytes);
+
+  } catch (error) {
+    console.error('Error al generar certificado:', error);
+    res.status(500).json({ 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
 
 module.exports = {
   registrarMovilizacionCompleta,
@@ -420,5 +474,6 @@ module.exports = {
   getTotalPendientes,
   getAnimalesByMovilizacionId,
   actualizarEstadoMovilizacion,
-  actualizarEstadosAutomaticos
+  actualizarEstadosAutomaticos,
+  generarCertificadoMovilizacion 
 };
