@@ -426,7 +426,6 @@ const generarCertificadoMovilizacion = async (req, res) => {
         { model: Predio, as: 'predio_origen' },
         { model: Predio, as: 'predio_destino' },
         { model: Usuario },
-        { model: Validacion }
       ]
     });
 
