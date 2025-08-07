@@ -12,7 +12,26 @@ const { actualizarEstadosAutomaticos } = require('./controllers/movilizacionCont
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  'https://web-abg.vercel.app', // Producción
+  'http://localhost:3001',
+  'http://localhost:3000' 
+         // Desarrollo local
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir solicitudes sin origen (como Postman)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('No permitido por CORS'));
+    }
+  },
+  credentials: true, // Solo si usas cookies o auth headers
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
