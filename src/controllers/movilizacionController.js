@@ -271,14 +271,14 @@ const getAnimalesByMovilizacionId = async (req, res) => {
 const actualizarEstadoMovilizacion = async (req, res) => {
   try {
     const { id, nuevoEstado } = req.body;
-    
+
     if (!['finalizado', 'alerta'].includes(nuevoEstado)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Solo se permite cambiar a "alerta" o "finalizado"' 
+      return res.status(400).json({
+        success: false,
+        message: 'Solo se permite cambiar a "alerta" o "finalizado"'
       });
     }
-    
+
     const movilizacion = await Movilizacion.findByPk(id, {
       include: [
         { model: Usuario, attributes: ['email', 'nombre'] },
@@ -286,24 +286,24 @@ const actualizarEstadoMovilizacion = async (req, res) => {
         { model: Predio, as: 'predio_destino', attributes: ['nombre'] }
       ]
     });
-    
+
     if (!movilizacion) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Movilización no encontrada' 
+      return res.status(404).json({
+        success: false,
+        message: 'Movilización no encontrada'
       });
     }
 
     if (movilizacion.estado === 'finalizado') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'No se puede modificar una movilización finalizada' 
+      return res.status(400).json({
+        success: false,
+        message: 'No se puede modificar una movilización finalizada'
       });
     }
 
     const updateData = {
       estado: nuevoEstado,
-      ...(nuevoEstado === 'finalizado' && { 
+      ...(nuevoEstado === 'finalizado' && {
         fecha_finalizacion: new Date(),
         ...(movilizacion.estado === 'alerta' && { fecha_resolucion_alerta: new Date() })
       }),
@@ -312,41 +312,65 @@ const actualizarEstadoMovilizacion = async (req, res) => {
 
     await movilizacion.update(updateData);
 
-    // Enviar notificación por email
+    // Validar si existe el usuario y su email
+    if (!movilizacion.Usuario || !movilizacion.Usuario.email) {
+      console.warn('No se encontró email del usuario asociado a la movilización');
+      return res.status(200).json({
+        success: true,
+        message: `Estado actualizado a ${nuevoEstado}, pero no se pudo enviar correo: usuario no tiene email.`,
+        movilizacion
+      });
+    }
+
     const usuarioEmail = movilizacion.Usuario.email;
     const asunto = `Movilización ${nuevoEstado}`;
+    const fechaActual = new Date().toLocaleString();
+
     let mensaje = '';
 
     if (nuevoEstado === 'alerta') {
       mensaje = `
-        <h2>Alerta en Movilización</h2>
-        <p>La movilización desde ${movilizacion.predio_origen.nombre} hacia 
-        ${movilizacion.predio_destino.nombre} ha sido marcada como ALERTA.</p>
-        <p>Fecha: ${new Date().toLocaleString()}</p>
+        <h2>🚨 Alerta en Movilización</h2>
+        <p>La movilización desde <strong>${movilizacion.predio_origen?.nombre}</strong> hacia 
+        <strong>${movilizacion.predio_destino?.nombre}</strong> ha sido marcada como <strong>ALERTA</strong>.</p>
+        <p><strong>Fecha:</strong> ${fechaActual}</p>
         <p>Por favor, tome las acciones necesarias.</p>
       `;
     } else {
       mensaje = `
-        <h2>Movilización Finalizada</h2>
-        <p>La movilización desde ${movilizacion.predio_origen.nombre} hacia 
-        ${movilizacion.predio_destino.nombre} ha sido FINALIZADA.</p>
-        <p>Fecha de finalización: ${new Date().toLocaleString()}</p>
+        <h2>✅ Movilización Finalizada</h2>
+        <p>La movilización desde <strong>${movilizacion.predio_origen?.nombre}</strong> hacia 
+        <strong>${movilizacion.predio_destino?.nombre}</strong> ha sido <strong>FINALIZADA</strong>.</p>
+        <p><strong>Fecha de finalización:</strong> ${fechaActual}</p>
       `;
     }
 
-    await sendEmail(usuarioEmail, asunto, mensaje);
+    // Enviar correo con manejo de error
+    try {
+      console.log(`Enviando correo a ${usuarioEmail}...`);
+      await sendEmail(usuarioEmail, asunto, mensaje);
+      console.log('Correo enviado con éxito.');
+    } catch (emailError) {
+      console.error('Error al enviar el correo:', emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Estado actualizado, pero hubo un error al enviar el correo',
+        movilizacion
+      });
+    }
 
-    res.json({ 
+    res.json({
       success: true,
       message: `Estado actualizado a ${nuevoEstado}`,
-      movilizacion 
+      movilizacion
     });
+
   } catch (error) {
     console.error('Error al actualizar estado:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error al actualizar estado', 
-      error: error.message 
+      message: 'Error al actualizar estado',
+      error: error.message
     });
   }
 };

@@ -221,7 +221,7 @@ const forgotPassword = async (req, res) => {
       { expiresIn: '15m' } // válido por 15 minutos
     );
 
-    const resetURL = `http://localhost:3001/reset-password?token=${resetToken}`;
+    const resetURL = `https://web-abg.vercel.app/reset-password?token=${resetToken}`;
 
     const html = `
       <h3>Recuperación de contraseña</h3>
