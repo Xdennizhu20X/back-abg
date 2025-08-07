@@ -85,7 +85,100 @@ const obtenerPerfil = async (req, res) => {
   }
 };
 
+const obtenerUsuarios = async (req, res) => {
+  try {
+    const usuarios = await Usuario.findAll({
+      attributes: { exclude: ['password'] }
+    });
+    res.json({
+      success: true,
+      data: usuarios
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener usuarios',
+      error: error.message
+    });
+  }
+};
+
+// Actualizar un usuario
+const actualizarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, email, rol } = req.body;
+
+    const usuario = await Usuario.findByPk(id);
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    usuario.nombre = nombre || usuario.nombre;
+    usuario.email = email || usuario.email;
+    usuario.rol = rol || usuario.rol;
+
+    await usuario.save();
+
+    const usuarioResponse = {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      email: usuario.email,
+      rol: usuario.rol,
+      fecha_registro: usuario.fecha_registro
+    };
+
+    res.json({
+      success: true,
+      message: 'Usuario actualizado exitosamente',
+      data: usuarioResponse
+    });
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar el usuario',
+      error: error.message
+    });
+  }
+};
+
+// Eliminar un usuario
+const eliminarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario = await Usuario.findByPk(id);
+
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    await usuario.destroy();
+
+    res.json({
+      success: true,
+      message: 'Usuario eliminado exitosamente'
+    });
+  } catch (error) {
+    console.error('Error al eliminar usuario:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al eliminar el usuario',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registrarUsuario,
-  obtenerPerfil
+  obtenerPerfil,
+  obtenerUsuarios,
+  actualizarUsuario,
+  eliminarUsuario,
 }; 
