@@ -37,7 +37,7 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true, // Puedes cambiarlo a false si es obligatorio
       validate: {
-        len: [7, 15] // Longitud típica de números telefónicos
+        len: [10] // Longitud típica de números telefónicos
       }
     },
     rol: {

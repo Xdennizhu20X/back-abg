@@ -86,7 +86,8 @@ const register = async (req, res) => {
       email,
       password,
       rol: rol || 'ganadero',
-      ci
+      ci,
+      telefono
     });
 
     const token = jwt.sign(

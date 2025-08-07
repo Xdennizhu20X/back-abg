@@ -23,7 +23,7 @@ const registrarUsuario = async (req, res) => {
       rol: rol || 'ganadero' // Por defecto, si no se especifica, será ganadero
     });
 
-    // Generar token JWT
+    // Generar token JWT  
     const token = jwt.sign(
       { id: usuario.id, email: usuario.email, rol: usuario.rol },
       process.env.JWT_SECRET,
@@ -107,7 +107,7 @@ const obtenerUsuarios = async (req, res) => {
 const actualizarUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, email, rol } = req.body;
+    const { nombre, email, rol, telefono } = req.body;
 
     const usuario = await Usuario.findByPk(id);
     if (!usuario) {
@@ -120,6 +120,7 @@ const actualizarUsuario = async (req, res) => {
     usuario.nombre = nombre || usuario.nombre;
     usuario.email = email || usuario.email;
     usuario.rol = rol || usuario.rol;
+    usuario.telefono = telefono || usuario.telefono;
 
     await usuario.save();
 
@@ -128,7 +129,8 @@ const actualizarUsuario = async (req, res) => {
       nombre: usuario.nombre,
       email: usuario.email,
       rol: usuario.rol,
-      fecha_registro: usuario.fecha_registro
+      fecha_registro: usuario.fecha_registro,
+      telefono: usuario.telefono, 
     };
 
     res.json({
