@@ -16,7 +16,7 @@ const allowedOrigins = [
   'https://web-abg.vercel.app', // Producción web
   'http://localhost:3001', //Local web
   'http://localhost:3000', //local web alternativa
-  'https://movilizacion-animales.vercel.app/', // Produccion movil
+  'https://movilizacion-animales.vercel.app', // Produccion movil
    
          
 ];
