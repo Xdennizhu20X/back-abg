@@ -7,8 +7,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "jest",
-    "init-db": "node src/scripts/init-db.js",
-    "postinstall": "npx puppeteer browsers install chrome"
+    "init-db": "node src/scripts/init-db.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
