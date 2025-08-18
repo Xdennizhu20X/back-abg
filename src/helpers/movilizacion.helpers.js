@@ -5,6 +5,9 @@ function transformarDatosParaCertificado(movilizacion) {
   const predioOrigen = movilizacion.predio_origen || {};
   const predioDestino = movilizacion.predio_destino || {};
   
+  // Determinar la condición de tenencia para los checkboxes
+  const condicion = predioOrigen.condicion_tenencia;
+
   return {
     numeroCertificado: movilizacion.id.toString().padStart(6, '0'),
     isla: "SANTA CRUZ", // Valor por defecto o tomar de algún campo
@@ -14,6 +17,11 @@ function transformarDatosParaCertificado(movilizacion) {
     telefono: usuario.telefono || datosAdicionales.telefono_solicitante || '',
     provincia: "Galápagos",
     
+    // Flags para los checkboxes de condición de tenencia
+    destinoPropio: condicion === 'Propio',
+    destinoArrendado: condicion === 'Arrendado',
+    destinoPrestado: condicion === 'Prestado',
+
     // Origen (usando la estructura que espera el PDF)
     origen: {
       predio: predioOrigen.nombre || '',

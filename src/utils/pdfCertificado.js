@@ -17,50 +17,54 @@ async function loadImageBase64(filename) {
 }
 
 async function generarCertificadoPDF(datos) {
-  // Log de depuración para verificar los datos recibidos
-  console.log('Datos recibidos para generar certificado:', JSON.stringify(datos, null, 2));
-  console.log('Animales:', datos.animales);
-  console.log('Aves:', datos.aves);
-  console.log('Total de animales:', datos.totalAnimales);
-  console.log('Total de aves:', datos.totalAves);
-  console.log('Tipo de totalAnimales:', typeof datos.totalAnimales);
-  console.log('Tipo de totalAves:', typeof datos.totalAves);
-  
-  // Calcular totales automáticamente si no se proporcionan
-  if (!datos.totalAnimales && datos.animales && Array.isArray(datos.animales)) {
-    datos.totalAnimales = datos.animales.length.toString();
-    console.log('Total de animales calculado automáticamente:', datos.totalAnimales);
+  // 1. Mapear y aplanar la estructura de datos anidada a la estructura que espera la plantilla
+  const datosMapeados = {
+    ...datos,
+    // Origen
+    desdePredioGranja: datos.origen?.predio,
+    desdeParroquia: datos.origen?.parroquia,
+    desdeLocalidad: datos.origen?.localidad,
+    // Destino
+    destinoFaenamiento: datos.destino?.centroFaenamiento,
+    destinoUbicacion: datos.destino?.ubicacion,
+    destinoPredio: datos.destino?.predio,
+    destinoNombrePredio: datos.destino?.nombrePredio,
+    destinoDireccion: datos.destino?.direccion,
+    destinoParroquia: datos.destino?.parroquia,
+    // Transporte
+    transporteTerrestre: datos.transporte?.tipo === 'terrestre' || datos.transporte?.tipo === 'camión', // Asume terrestre si es camión
+    tipoTransporte: datos.transporte?.tipo,
+    nombreTransportista: datos.transporte?.nombreTransportista,
+    matriculaPlaca: datos.transporte?.placa,
+    ciTransportista: datos.transporte?.cedula,
+    telefonoTransportista: datos.transporte?.telefono,
+    detalleOtroTransporte: datos.transporte?.detalleOtro,
+    // Validez
+    validezTiempo: datos.validez?.tiempo,
+    validezDesde: datos.validez?.desde,
+    validezHasta: datos.validez?.hasta,
+    fechaEmision: datos.validez?.fechaEmision,
+  };
+
+  // 2. Calcular totales si no se proporcionan
+  if (!datosMapeados.totalAnimales && datosMapeados.animales && Array.isArray(datosMapeados.animales)) {
+    datosMapeados.totalAnimales = datosMapeados.animales.length;
   }
-  
-  if (!datos.totalAves && datos.aves && Array.isArray(datos.aves)) {
-    datos.totalAves = datos.aves.length.toString();
-    console.log('Total de aves calculado automáticamente:', datos.totalAves);
+  if (!datosMapeados.totalAves && datosMapeados.aves && Array.isArray(datosMapeados.aves)) {
+    datosMapeados.totalAves = datosMapeados.aves.reduce((sum, ave) => sum + (parseInt(ave.total, 10) || 0), 0);
   }
-  
-  // Log detallado de aves para depuración
-  if (datos.aves && Array.isArray(datos.aves)) {
-    console.log('Procesando aves:', datos.aves.length, 'elementos');
-    datos.aves.forEach((ave, index) => {
-      console.log(`Ave ${index + 1}:`, {
-        numero_galpon: ave.numero_galpon,
-        categoria: ave.categoria,
-        edad: ave.edad,
-        total_aves: ave.total_aves,
-        observaciones: ave.observaciones
-      });
-    });
-  }
-  
+
+
   // Cargar imágenes como base64
   const escudoBase64 = await loadImageBase64('escudo_ecuador.png');
   const nuevoEcuadorBase64 = await loadImageBase64('nuevo_ecuador.png');
 
-  // Generar HTML del certificado
-  const htmlContent = generarHTMLCertificado(datos, escudoBase64, nuevoEcuadorBase64);
+  // Generar HTML del certificado con los datos mapeados
+  const htmlContent = generarHTMLCertificado(datosMapeados, escudoBase64, nuevoEcuadorBase64);
 
   // Usar Puppeteer para convertir HTML a PDF
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
@@ -427,7 +431,6 @@ function generarHTMLCertificado(datos, escudoBase64, nuevoEcuadorBase64) {
                     <td colspan="8" class="text-right bold">Total de animales:</td>
                     <td class="text-center bold">${datos.totalAnimales ? datos.totalAnimales.toString() : '0'}</td>
                 </tr>
-                <!-- Debug: totalAnimales = ${datos.totalAnimales} -->
             </tbody>
         </table>
 
@@ -455,11 +458,11 @@ function generarHTMLCertificado(datos, escudoBase64, nuevoEcuadorBase64) {
                     datos.aves.map((ave, index) => `
                     <tr>
                         <td>${index + 1}</td>
-                        <td>${ave.numero_galpon || ''}</td>
+                        <td>${ave.galpon || ''}</td>
                         <td>${ave.categoria === 'Engorde' ? 'X' : ''}</td>
                         <td>${ave.categoria === 'Postura' ? 'X' : ''}</td>
                         <td>${ave.edad || ''}</td>
-                        <td>${ave.total_aves || ''}</td>
+                        <td>${ave.total || ''}</td>
                         <td>${ave.observaciones || ''}</td>
                     </tr>
                     `).join('') : 
@@ -475,9 +478,8 @@ function generarHTMLCertificado(datos, escudoBase64, nuevoEcuadorBase64) {
                     </tr>
                     `).join('')
                 }
-                <!-- Debug: aves = ${JSON.stringify(datos.aves)} -->
                 <tr>
-                    <td colspan="5" class="text-right bold">Total de animales:</td>
+                    <td colspan="5" class="text-right bold">Total de aves:</td>
                     <td class="text-center bold">${datos.totalAves ? datos.totalAves.toString() : '0'}</td>
                     <td></td>
                 </tr>

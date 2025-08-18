@@ -22,7 +22,7 @@
     "pdf-lib": "^1.17.1",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
-    "puppeteer": "^24.12.1",
+    "puppeteer": "^24.16.2",
     "sequelize": "^6.35.1"
   },
   "devDependencies": {

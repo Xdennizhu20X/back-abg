@@ -10,15 +10,15 @@ const registrarMovilizacionCompleta = async (req, res) => {
   try {
     const {
       fecha,
-      nombre_solicitante,
-      cedula_solicitante,
-      telefono_solicitante,
+      // Los datos del solicitante se reciben pero no se usan según la última instrucción
+      // nombre_solicitante,
+      // cedula_solicitante,
+      // telefono_solicitante,
       animales,
       aves,
       predio_origen,
       destino,
-      transporte,
-      datos_adicionales
+      transporte
     } = req.body;
 
     const usuario_id = req.usuario?.id;
@@ -27,77 +27,59 @@ const registrarMovilizacionCompleta = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
     }
 
-    if (!predio_origen?.parroquia || !predio_origen?.nombre) {
-      await t.rollback();
-      return res.status(400).json({ message: 'Datos incompletos en predio de origen' });
-    }
-    if (!destino?.parroquia || !destino?.nombre_predio) {
-      await t.rollback();
-      return res.status(400).json({ message: 'Datos incompletos en predio de destino' });
-    }
-
+    // --- Creación de Predios (Corregido) ---
     const origen = await Predio.create({
-      nombre: predio_origen.nombre,
-      parroquia: predio_origen.parroquia,
-      ubicacion: predio_origen.ubicacion || null,
-      tipo: 'origen',
-      datos_adicionales: predio_origen.datos_adicionales || null,
-      usuario_id
+      ...predio_origen, // Guarda todos los campos que coincidan con el modelo
+      usuario_id,
+      tipo: 'origen'
     }, { transaction: t });
-
-    const centroFaenamientoStr = destino.centro_faenamiento; // "Si" o "No"
-    const centroFaenamientoBool = centroFaenamientoStr === 'Si'; 
 
     const destinoPredio = await Predio.create({
-      nombre: destino.nombre_predio,
-      parroquia: destino.parroquia,
-      ubicacion: destino.direccion || destino.ubicacion || null,
-      tipo: 'destino',
-      usuario_id
+      ...destino,
+      nombre: destino.nombre_predio, // Mapea nombre_predio a nombre
+      usuario_id,
+      tipo: 'destino'
     }, { transaction: t });
 
+
+    // --- Creación de Movilización (sin datos de solicitante) ---
     const movilizacion = await Movilizacion.create({
       usuario_id,
       fecha_solicitud: fecha,
       estado: 'pendiente',
       predio_origen_id: origen.id,
       predio_destino_id: destinoPredio.id,
-      datos_adicionales: {
-        nombre_solicitante,
-        cedula_solicitante,
-        telefono_solicitante,
-        provincia: "Galápagos",
-        destino: {
-          centro_faenamiento: centroFaenamientoBool,
-          referencia: destino.direccion
-        },
-        datos_predio_origen: predio_origen,
-        datos_adicionales
-      }
     }, { transaction: t });
 
+    // --- Creación de Animales (Más robusto) ---
     if (Array.isArray(animales)) {
       for (const animal of animales) {
-        await Animal.create({ movilizacion_id: movilizacion.id, ...animal }, { transaction: t });
+        await Animal.create({ 
+          ...animal,
+          movilizacion_id: movilizacion.id, 
+          identificador: animal.identificador || animal.identificacion, // Acepta ambos nombres
+        }, { transaction: t });
       }
     }
 
+    // --- Creación de Aves (Más robusto) ---
     if (aves && Array.isArray(aves) && aves.length > 0) {
       for (const ave of aves) {
-        await Ave.create({ movilizacion_id: movilizacion.id, ...ave }, { transaction: t });
+        await Ave.create({ 
+          ...ave,
+          movilizacion_id: movilizacion.id, 
+          numero_galpon: ave.numero_galpon || ave.galpon, // Acepta ambos nombres
+          total_aves: ave.total_aves || ave.total,         // Acepta ambos nombres
+        }, { transaction: t });
       }
     }
 
+    // --- Creación de Transporte (Más robusto) ---
     if (transporte) {
       await Transporte.create({
+        ...transporte,
         movilizacion_id: movilizacion.id,
-        tipo_via: transporte.tipo_via,
-        tipo_transporte: transporte.tipo_transporte || null,
-        nombre_transportista: transporte.nombre_transportista || null,
-        cedula_transportista: transporte.cedula_transportista || null,
-        placa: transporte.placa || null,
-        telefono_transportista: transporte.telefono_transportista || null,
-        detalle_otro: transporte.detalle_otro || null
+        es_terrestre: transporte.es_terrestre || transporte.tipo_via === 'terrestre',
       }, { transaction: t });
     }
 
