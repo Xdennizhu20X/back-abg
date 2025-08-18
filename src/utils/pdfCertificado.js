@@ -1,10 +1,15 @@
-const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 
-async function loadImageBytes(filename) {
+async function loadImageBase64(filename) {
   try {
-    return await fs.promises.readFile(path.join(__dirname, 'assets', filename));
+    const imagePath = path.join(__dirname, 'assets', filename);
+    if (fs.existsSync(imagePath)) {
+      const imageBuffer = fs.readFileSync(imagePath);
+      return `data:image/png;base64,${imageBuffer.toString('base64')}`;
+    }
+    return null;
   } catch (error) {
     console.warn(`No se pudo cargar la imagen ${filename}:`, error.message);
     return null;
@@ -12,398 +17,631 @@ async function loadImageBytes(filename) {
 }
 
 async function generarCertificadoPDF(datos) {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]); // A4
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const borderWidth = 0.5;
-  const borderColor = rgb(0, 0, 0);
-
-  // --- CARGAR IMÁGENES ---
-  const escudoBytes = await loadImageBytes('escudo_ecuador.png');
-  const nuevoEcuadorBytes = await loadImageBytes('nuevo_ecuador.png');
-  const escudoImage = escudoBytes ? await pdfDoc.embedPng(escudoBytes) : null;
-  const nuevoEcuadorImage = nuevoEcuadorBytes ? await pdfDoc.embedPng(nuevoEcuadorBytes) : null;
-
-  // --- CABECERA ---
-  if (escudoImage) {
-    page.drawImage(escudoImage, { x: 45, y: 795, width: 55, height: 45 });
+  // Log de depuración para verificar los datos recibidos
+  console.log('Datos recibidos para generar certificado:', JSON.stringify(datos, null, 2));
+  console.log('Animales:', datos.animales);
+  console.log('Aves:', datos.aves);
+  console.log('Total de animales:', datos.totalAnimales);
+  console.log('Total de aves:', datos.totalAves);
+  console.log('Tipo de totalAnimales:', typeof datos.totalAnimales);
+  console.log('Tipo de totalAves:', typeof datos.totalAves);
+  
+  // Calcular totales automáticamente si no se proporcionan
+  if (!datos.totalAnimales && datos.animales && Array.isArray(datos.animales)) {
+    datos.totalAnimales = datos.animales.length.toString();
+    console.log('Total de animales calculado automáticamente:', datos.totalAnimales);
   }
-
-
-  // Justificamos a la derecha calculando el ancho del texto y restándolo del ancho de la página (595.28)
-  const texto1 = 'Agencia de Regulación y Control de la';
-  const texto2 = 'Bioseguridad y Cuarentena para Galápagos';
-  const size = 9;
-  const pageWidth = 595.28;
-  const margenDerecho = 30;
-
-  const anchoTexto1 = font.widthOfTextAtSize(texto1, size);
-  const anchoTexto2 = font.widthOfTextAtSize(texto2, size);
-
-  page.drawText(texto1, { x: pageWidth - anchoTexto1 - margenDerecho, y: 805, size, font });
-  page.drawText(texto2, { x: pageWidth - anchoTexto2 - margenDerecho, y: 795, size, font });
-
-  let y = 775;
-  const tableX = 50;
-  const tableWidth = 500;
-
-  // --- RECUADRO PRINCIPAL DEL CERTIFICADO ---
-  const mainBoxHeight = 40;
-  page.drawRectangle({ x: tableX, y: y - mainBoxHeight, width: tableWidth, height: mainBoxHeight, borderColor, borderWidth });
-  page.drawText('CERTIFICADO ZOOSANITARIO PARA LA MOVILIZACIÓN DE ANIMALES EN LAS ISLAS', { x: tableX + 5, y: y - 15, size: 10, font: fontBold });
   
-  const islaTexto = datos.isla || 'SANTA CRUZ';
-  const islaAncho = fontBold.widthOfTextAtSize(islaTexto, 11);
-  page.drawText(islaTexto, { x: tableX + (tableWidth - islaAncho) / 2, y: y - 30, size: 11, font: fontBold });
-
-  const numRectW = 85;
-  const numRectH = 20;
-  const numRectX = tableX + tableWidth - numRectW - 8;
-  page.drawRectangle({ x: numRectX, y: y - 38, width: numRectW, height: numRectH, borderColor: rgb(1,0,0), borderWidth });
-  page.drawText(`No. ${datos.numeroCertificado || '000000'}`, { x: numRectX + 5, y: y - 30, size: 10, color: rgb(1,0,0), font: fontBold });
+  if (!datos.totalAves && datos.aves && Array.isArray(datos.aves)) {
+    datos.totalAves = datos.aves.length.toString();
+    console.log('Total de aves calculado automáticamente:', datos.totalAves);
+  }
   
-  y -= (mainBoxHeight + 15);
-
-  // --- PÁRRAFO INTRODUCTORIO ---
-  const introText = `La Agencia de Regulación y Control de la Bioseguridad y Cuarentena para Galápagos, con fecha: ___/___/___ autoriza al señor (a) ${datos.nombre || '____________________'}, con C.I. No. ${datos.ci || '____________________'} y teléfono No. ${datos.telefono || '____________________'}, residente de la Provincia de Galápagos.`;
-  page.drawText(introText, { x: tableX, y, size: 9, font, lineHeight: 15, maxWidth: tableWidth });
-  
-  y -= 40;
-
-  // --- SECCIÓN I: MOVILIZACIÓN ---
-  const headerIHeight = 18;
-  page.drawRectangle({ x: tableX, y, width: tableWidth, height: headerIHeight, color: rgb(0.9, 0.9, 0.9), borderColor, borderWidth });
-  page.drawText('I LA MOVILIZACIÓN DE LOS SIGUIENTES ANIMALES DE LA ESPECIE', { x: tableX + 5, y: y + 5, size: 9, font: fontBold });
-  page.drawRectangle({ x: tableX + tableWidth - 100, y, width: 100, height: headerIHeight, borderColor, borderWidth });
-  
-  y -= headerIHeight;
-  
-  // --- TABLA ANIMALES ---
-  const headers = ['Ord.', 'Identificación', 'Categoría', 'Raza', 'Sexo', 'Color', 'Edad', 'Comerciante', 'Observaciones'];
-  const colWidths = [30, 80, 65, 50, 35, 45, 35, 75, 85];
-  const rowHeight = 15;
-  // Reducimos espacio entre el título y la cabecera de la tabla
-  y += rowHeight;  // antes se dejaba una fila vacía (15 px)
-  const numRows = 7;
-  
-  let currentX = tableX;
-  headers.forEach((header, i) => {
-    page.drawRectangle({ x: currentX, y: y - rowHeight, width: colWidths[i], height: rowHeight, borderColor, borderWidth });
-    page.drawText(header, { x: currentX + 3, y: y - 10, size: 7, font: fontBold });
-    currentX += colWidths[i];
-  });
-  y -= rowHeight;
-  
-  for (let i = 0; i < numRows; i++) {
-    currentX = tableX;
-    const animal = datos.animales?.[i] || {};
-    const rowData = [i+1, animal.identificacion, animal.categoria, animal.raza, animal.sexo, animal.color, animal.edad, animal.comerciante, animal.observaciones];
-    colWidths.forEach((width, j) => {
-      page.drawRectangle({ x: currentX, y: y - rowHeight, width, height: rowHeight, borderColor, borderWidth });
-      page.drawText(`${rowData[j] || ''}`, { x: currentX + 3, y: y - 10, size: 8 });
-      currentX += width;
+  // Log detallado de aves para depuración
+  if (datos.aves && Array.isArray(datos.aves)) {
+    console.log('Procesando aves:', datos.aves.length, 'elementos');
+    datos.aves.forEach((ave, index) => {
+      console.log(`Ave ${index + 1}:`, {
+        numero_galpon: ave.numero_galpon,
+        categoria: ave.categoria,
+        edad: ave.edad,
+        total_aves: ave.total_aves,
+        observaciones: ave.observaciones
+      });
     });
-    y -= rowHeight;
   }
   
-  // --- Fila TOTAL DE ANIMALES ---
-  const totalAnimales = datos.animales?.length || 0;
+  // Cargar imágenes como base64
+  const escudoBase64 = await loadImageBase64('escudo_ecuador.png');
+  const nuevoEcuadorBase64 = await loadImageBase64('nuevo_ecuador.png');
 
-  // Celda combinada Ord. + Identificación para la etiqueta
-  const totalLabelW = colWidths[0] + colWidths[1];
-  page.drawRectangle({ x: tableX, y: y - rowHeight, width: totalLabelW, height: rowHeight, borderColor, borderWidth });
-  page.drawText('Total de animales:', { x: tableX + 5, y: y - 10, size: 8, font: fontBold });
+  // Generar HTML del certificado
+  const htmlContent = generarHTMLCertificado(datos, escudoBase64, nuevoEcuadorBase64);
 
-  // Celda de Categoría para el número total
-  const catX = tableX + totalLabelW; // inicio columna Categoría
-  page.drawRectangle({ x: catX, y: y - rowHeight, width: colWidths[2], height: rowHeight, borderColor, borderWidth });
-  page.drawText(`${totalAnimales}`, { x: catX + 5, y: y - 10, size: 8 });
-
-  // Marco del resto de la fila (Raza hasta Observaciones)
-  const restX = catX + colWidths[2];
-  const restW = tableWidth - (restX - tableX);
-  page.drawRectangle({ x: restX, y: y - rowHeight, width: restW, height: rowHeight, borderColor, borderWidth });
-  
-  y -= (rowHeight + 13);
-
-  // --- TABLA AVES ---
-  page.drawText('Para el uso exclusivo de aves', { x: tableX, y, size: 9, font: fontBold });
-  y -= 15;
-  const headersAves = ['Ord.', 'No. galpón', 'Categoría', 'Edad', 'Total de aves', 'Observaciones'];
-  const colWidthsAves = [30, 70, 100, 50, 70, 180];
-  const numRowsAves = 3;
-
-  currentX = tableX;
-  headersAves.forEach((header, i) => {
-    if(header === 'Categoría') {
-      // Marco rectangular de 2 filas
-      page.drawRectangle({ x: currentX, y: y - (rowHeight * 2), width: colWidthsAves[i], height: rowHeight * 2, borderColor, borderWidth });
-
-      // Título "Categoría" centrado en la parte superior
-      page.drawText(header, { x: currentX + 25, y: y - 12, size: 7, font: fontBold });
-
-      // Línea horizontal completa para separar Engorde / Postura
-      page.drawLine({ start: { x: currentX, y: y - rowHeight }, end: { x: currentX + colWidthsAves[i], y: y - rowHeight }, thickness: borderWidth });
-
-      // Línea vertical para dividir Engorde y Postura
-      const catHalfW = colWidthsAves[i] / 2;
-      page.drawLine({ start: { x: currentX + catHalfW, y: y - rowHeight }, end: { x: currentX + catHalfW, y: y - (rowHeight * 2) }, thickness: borderWidth });
-
-      // Subtítulos
-      page.drawText('Engorde', { x: currentX + 5, y: y - rowHeight - 10, size: 7, font: fontBold });
-      page.drawText('Postura', { x: currentX + catHalfW + 5, y: y - rowHeight - 10, size: 7, font: fontBold });
-    } else {
-      page.drawRectangle({ x: currentX, y: y - (rowHeight * 2), width: colWidthsAves[i], height: rowHeight * 2, borderColor, borderWidth });
-      // Centramos el texto verticalmente en la celda de 2 filas
-      const txtY = y - rowHeight - 8;
-      page.drawText(header, { x: currentX + 5, y: txtY, size: 7, font: fontBold });
-    }
-    currentX += colWidthsAves[i];
+  // Usar Puppeteer para convertir HTML a PDF
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
-  y -= (rowHeight * 2);
 
-  for (let i = 0; i < numRowsAves; i++) {
-    currentX = tableX;
-    const ave = datos.aves?.[i] || {};
-    const rowData = [i+1, ave.galpon, '', ave.edad, ave.total, ave.observaciones];
-    colWidthsAves.forEach((width, j) => {
-      page.drawRectangle({ x: currentX, y: y - rowHeight, width, height: rowHeight, borderColor, borderWidth });
-       if(j === 2) { // Categoria
-         page.drawRectangle({ x: currentX, y: y - rowHeight, width: width/2, height: rowHeight, borderColor, borderWidth });
-         page.drawText(ave.categoria === 'Engorde' ? 'X' : '', { x: currentX + 22, y: y - 10, size: 8 });
-         page.drawText(ave.categoria === 'Postura' ? 'X' : '', { x: currentX + (width/2) + 22, y: y - 10, size: 8 });
-       } else {
-         page.drawText(`${rowData[j] || ''}`, { x: currentX + 3, y: y - 10, size: 8 });
-       }
-      currentX += width;
+  try {
+    const page = await browser.newPage();
+    
+    // Configurar la página para A4
+    await page.setViewport({ width: 794, height: 1123 }); // A4 en píxeles (96 DPI)
+    
+    // Establecer el contenido HTML
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+    // Generar PDF
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
     });
-    y -= rowHeight;
+
+    return pdf;
+  } finally {
+    await browser.close();
   }
-  // --- Fila TOTAL DE ANIMALES ---
-  const totalAves = datos.aves?.reduce((acc, a) => acc + (a.total || 0), 0) || 0;
+}
 
-  // Celda combinada para el texto (Ord. + No. galpón)
-  const totalCellW = colWidthsAves[0] + colWidthsAves[1];
-  page.drawRectangle({ x: tableX, y: y - rowHeight, width: totalCellW, height: rowHeight, borderColor, borderWidth });
-  page.drawText('Total de animales:', { x: tableX + 5, y: y - 10, size: 8, font: fontBold });
+function generarHTMLCertificado(datos, escudoBase64, nuevoEcuadorBase64) {
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificado Zoosanitario</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            font-size: 10px;
+            color: #333;
+        }
+        .container {
+            width: 100%;
+            max-width: 794px; /* A4 width in pixels at 96dpi */
+            margin: 0 auto;
+            border: 1px solid #000;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        .header, .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .header-left, .header-right {
+            text-align: center;
+            flex: 1;
+        }
+        .header-left img {
+            height: 50px;
+            margin-bottom: 5px;
+        }
+        .header-right img {
+            height: 40px;
+            margin-top: 5px;
+        }
+        .header-right p {
+            font-size: 9px;
+            margin: 0;
+        }
+        .title {
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            border: 1px solid #000;
+            padding: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .info-block {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        .info-block span {
+            font-weight: bold;
+        }
+        .info-block p {
+            margin: 0;
+        }
+        .info-block .no-underline {
+            text-decoration: none;
+        }
+        .info-block .underline {
+            text-decoration: underline;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        table, th, td {
+            border: 1px solid #000;
+        }
+        th, td {
+            padding: 4px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            font-size: 9px;
+        }
+        td {
+            font-size: 9px;
+        }
+        .section-title {
+            font-weight: bold;
+            background-color: #e0e0e0;
+            padding: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .checkbox-group span {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .checkbox {
+            width: 8px;
+            height: 8px;
+            border: 1px solid #000;
+            display: inline-block;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        .signature-block {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .signature-item {
+            width: 45%;
+            border-top: 1px solid #000;
+            padding-top: 5px;
+            font-size: 9px;
+        }
+        .footer-info {
+            font-size: 8px;
+            text-align: center;
+            margin-top: 20px;
+            line-height: 1.3;
+        }
+        .footer-info p {
+            margin: 0;
+        }
+        .footer-logo {
+            text-align: right;
+        }
+        .footer-logo img {
+            height: 30px;
+        }
+        .flex-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 15px;
+            border: 1px solid #000;
+            padding: 10px;
+        }
+        .flex-item {
+            flex: 1;
+            border-right: 1px solid #ccc;
+            padding-right: 15px;
+        }
+        .flex-item:last-child {
+            border-right: none;
+            padding-right: 0;
+        }
+        .flex-item.half {
+            flex: 0.5;
+        }
+        .flex-item.quarter {
+            flex: 0.25;
+        }
+        .flex-item.three-quarter {
+            flex: 0.75;
+        }
+        .flex-item label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .flex-item .value {
+            border-bottom: 1px solid #000;
+            padding-bottom: 2px;
+            min-height: 12px; /* Ensure space for value */
+        }
+        .small-text {
+            font-size: 8px;
+        }
+        .no-border-table {
+            border: none;
+        }
+        .no-border-table td, .no-border-table th {
+            border: none;
+            padding: 2px 0;
+        }
+        .no-border-table .label {
+            font-weight: bold;
+            width: 100px; /* Fixed width for labels */
+        }
+        .no-border-table .value {
+            border-bottom: 1px solid #000;
+            flex-grow: 1;
+            padding-left: 5px;
+        }
+        .inline-flex {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 8px;
+            min-height: 20px;
+        }
+        .inline-flex .label {
+            font-weight: bold;
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+        .inline-flex .value {
+            flex-grow: 1;
+            border-bottom: 1px solid #000;
+            min-height: 12px;
+        }
+        .inline-flex .checkbox-label {
+            margin-left: 10px;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        .inline-flex .checkbox-box {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #000;
+            display: inline-block;
+            vertical-align: middle;
+            text-align: center;
+            line-height: 12px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .bold {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="${escudoBase64}" alt="Escudo del Ecuador">
+                
+            </div>
+            <div class="header-right">
+                <p>Agencia de Regulación y Control de la<br>Bioseguridad y Cuarentena para Galápagos</p>
+            </div>
+        </div>
 
-  // Celda bajo "Engorde" para el valor total
-  const engordeX = tableX + totalCellW; // inicio de columna Categoría
-  const engordeW = colWidthsAves[2] / 2;
-  page.drawRectangle({ x: engordeX, y: y - rowHeight, width: engordeW, height: rowHeight, borderColor, borderWidth });
-  page.drawText(`${totalAves}`, { x: engordeX + 5, y: y - 10, size: 8 });
+        <div class="title">
+            CERTIFICADO ZOOSANITARIO PARA LA MOVILIZACIÓN DE ANIMALES EN LAS ISLAS
+        </div>
+        <div class="subtitle">
+            ${datos.isla || 'SANTA CRUZ'}
+        </div>
 
-  // Marco del resto de la fila (desde Postura hasta el final), sin líneas internas
-  const restoX = engordeX + engordeW;
-  const restoW = tableWidth - (restoX - tableX);
-  page.drawRectangle({ x: restoX, y: y - rowHeight, width: restoW, height: rowHeight, borderColor, borderWidth });
+        <div class="info-block">
+            <div style="display: flex; justify-content: flex-end; margin-top: -15px; margin-bottom: -5px;">
+                <div style="width: 100px; border: 1px solid #ff0000; color: #ff0000; padding: 2px 8px; text-align: center; font-weight: bold; margin-top: 5px;">
+                    No. ${datos.numeroCertificado || '000000'}
+                </div>
+            </div>
+            <p>La Agencia de Regulación y Control de la Bioseguridad y Cuarentena para Galápagos, con</p>
+            <div class="inline-flex">
+                <span class="label">fecha:</span>
+                <span class="value">${datos.fecha || '___/___/___'}</span>
+                <span class="label" style="margin-left: 20px;">autoriza al señor (a)</span>
+                <span class="value" style="flex: 2;">${datos.nombre || '_________________________________________________'}</span>
+            </div>
+            <div class="inline-flex">
+                <span class="label">con C.I. No.</span>
+                <span class="value">${datos.ci || '____________________'}</span>
+                <span class="label" style="margin-left: 20px;">y teléfono No.</span>
+                <span class="value">${datos.telefono || '____________________'}</span>
+                <span class="label" style="margin-left: 20px;">residente de la Provincia de Galápagos.</span>
+            </div>
+        </div>
 
-  y -= (rowHeight + 10);
+        <div class="section-title">
+            I LA MOVILIZACIÓN DE LOS SIGUIENTES ANIMALES DE LA ESPECIE
+        </div>
 
-  // --- ORIGEN Y DESTINO ---
-  const col1X = tableX;
-  const col2X = tableX + 280;
-  const col1W = 270;
-  const col2W = 220;
-  const fieldH = 18;
-  
-  let yOrigen = y;
-  
-  // Columna 1
-  page.drawRectangle({ x: col1X, y: y-fieldH, width: col1W, height: fieldH, borderColor, borderWidth });
-  page.drawText('Desde:', {x: col1X + 5, y: y-12, size: 8, font: fontBold});
-  y-=fieldH;
-  page.drawRectangle({ x: col1X, y: y-fieldH, width: col1W, height: fieldH, borderColor, borderWidth });
-  page.drawText(`Predio / granja: ${datos.origen?.predio || ''}`, {x: col1X + 5, y: y-12, size: 8});
-  y-=fieldH;
-  page.drawRectangle({ x: col1X, y: y-fieldH, width: col1W, height: fieldH, borderColor, borderWidth });
-  page.drawText(`Parroquia: ${datos.origen?.parroquia || ''}`, {x: col1X + 5, y: y-12, size: 8});
-  y-=fieldH;
-  page.drawRectangle({ x: col1X, y: y-fieldH, width: col1W, height: fieldH, borderColor, borderWidth });
-  page.drawText(`Localidad / sitio / km: ${datos.origen?.localidad || ''}`, {x: col1X + 5, y: y-12, size: 8});
-  y-= (fieldH + 5);
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 5%;">Ord.</th>
+                    <th style="width: 20%;">Identificación</th>
+                    <th style="width: 15%;">Categoría</th>
+                    <th style="width: 10%;">Raza</th>
+                    <th style="width: 8%;">Sexo</th>
+                    <th style="width: 8%;">Color</th>
+                    <th style="width: 8%;">Edad</th>
+                    <th style="width: 15%;">Comerciante</th>
+                    <th style="width: 11%;">Observaciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${(datos.animales && Array.isArray(datos.animales) && datos.animales.length > 0) ? 
+                    datos.animales.map((animal, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${animal.identificacion || ''}</td>
+                        <td>${animal.categoria || ''}</td>
+                        <td>${animal.raza || ''}</td>
+                        <td>${animal.sexo || ''}</td>
+                        <td>${animal.color || ''}</td>
+                        <td>${animal.edad || ''}</td>
+                        <td>${animal.comerciante || ''}</td>
+                        <td>${animal.observaciones || ''}</td>
+                    </tr>
+                    `).join('') : 
+                    Array.from({length: 7}, (_, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    `).join('')
+                }
+                <tr>
+                    <td colspan="8" class="text-right bold">Total de animales:</td>
+                    <td class="text-center bold">${datos.totalAnimales ? datos.totalAnimales.toString() : '0'}</td>
+                </tr>
+                <!-- Debug: totalAnimales = ${datos.totalAnimales} -->
+            </tbody>
+        </table>
 
-  //page.drawRectangle({ x: col1X, y: y-fieldH, width: col1W, height: fieldH, borderColor, borderWidth });
-  page.drawText('Destino:', {x: col1X + 5, y: y-12, size: 8, font: fontBold});
-  // ----- NUEVO BLOQUE DESTINO -----
-  y -= fieldH;
+        <div class="section-title">
+            Para el uso exclusivo de aves
+        </div>
 
-  const gap = 10; // espacio entre los dos recuadros principales
-  const destLeftW  = 220;                     // ancho recuadro izquierdo (ligeramente más pequeño)
-  const destRightW = tableWidth - destLeftW - gap; // ancho recuadro derecho actualizado
-  const destLeftX  = col1X;                   // X inicial recuadro izquierdo
-  const destRightX = destLeftX + destLeftW + gap; // X inicial recuadro derecho
-  const destBoxH   = fieldH * 2;              // alto total (2 filas)
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 5%;" rowspan="2">Ord.</th>
+                    <th style="width: 15%;" rowspan="2">No. galpón</th>
+                    <th colspan="2" style="width: 20%;">Categoría</th>
+                    <th style="width: 10%;" rowspan="2">Edad</th>
+                    <th style="width: 10%;" rowspan="2">Total de aves</th>
+                    <th style="width: 40%;" rowspan="2">Observaciones</th>
+                </tr>
+                <tr>
+                    <th style="font-size: 8px;">Engorde</th>
+                    <th style="font-size: 8px;">Postura</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${(datos.aves && Array.isArray(datos.aves) && datos.aves.length > 0) ? 
+                    datos.aves.map((ave, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${ave.numero_galpon || ''}</td>
+                        <td>${ave.categoria === 'Engorde' ? 'X' : ''}</td>
+                        <td>${ave.categoria === 'Postura' ? 'X' : ''}</td>
+                        <td>${ave.edad || ''}</td>
+                        <td>${ave.total_aves || ''}</td>
+                        <td>${ave.observaciones || ''}</td>
+                    </tr>
+                    `).join('') : 
+                    Array.from({length: 3}, (_, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    `).join('')
+                }
+                <!-- Debug: aves = ${JSON.stringify(datos.aves)} -->
+                <tr>
+                    <td colspan="5" class="text-right bold">Total de animales:</td>
+                    <td class="text-center bold">${datos.totalAves ? datos.totalAves.toString() : '0'}</td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
 
-  // Recuadro izquierdo: "Centro de faenamiento"
-  page.drawRectangle({ x: destLeftX, y: y - destBoxH, width: destLeftW, height: destBoxH, borderColor, borderWidth });
-  // Línea horizontal que separa filas
-  page.drawLine({ start: { x: destLeftX, y: y - fieldH }, end: { x: destLeftX + destLeftW, y: y - fieldH }, thickness: borderWidth });
-  // Celda pequeña al final de la primera fila (para marcar)
-  const leftSmallCellW = 35;
-  page.drawLine({ start: { x: destLeftX + destLeftW - leftSmallCellW, y }, end: { x: destLeftX + destLeftW - leftSmallCellW, y: y - fieldH }, thickness: borderWidth });
+        <div class="flex-row" style="margin: 2px; font-size: 8px;">
+            <div class="flex-item">
+                <div style="font-weight: bold; font-size: 2em;">Desde:</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <div class="inline-flex" style="margin-bottom: 0; font-size: 8px;">
+                        <span class="label">Predio / granja:</span>
+                        <span class="value">${datos.desdePredioGranja || ''}</span>
+                    </div>
+                    <div class="inline-flex" style="margin-bottom: 0; font-size: 8px;">
+                        <span class="label">Parroquia:</span>
+                        <span class="value">${datos.desdeParroquia || ''}</span>
+                    </div>
+                    <div class="inline-flex" style="margin-bottom: 0; font-size: 8px;">
+                        <span class="label">Localidad / sitio / km:</span>
+                        <span class="value">${datos.desdeLocalidad || ''}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-item">
+                <div style="font-weight: bold; font-size: 2em; margin-bottom: 2px;">Datos adicionales:</div>
+                <div class="inline-flex mb-0" style="justify-content: flex-end; font-size: 8px; margin-bottom: 2px;">
+                    <span class="checkbox-label">Propio</span><span class="checkbox-box">${datos.destinoPropio ? 'X' : ''}</span>
+                </div>
+                <div class="inline-flex mb-0" style="justify-content: flex-end; font-size: 8px; margin-bottom: 2px;">
+                    <span class="checkbox-label">Arrendado</span><span class="checkbox-box">${datos.destinoArrendado ? 'X' : ''}</span>
+                </div>
+                <div class="inline-flex mb-0" style="justify-content: flex-end; font-size: 8px; margin-bottom: 0;">
+                    <span class="checkbox-label">Prestado</span><span class="checkbox-box">${datos.destinoPrestado ? 'X' : ''}</span>
+                </div>
+            </div>
+        </div>
 
-  page.drawText('Centro de faenamiento:', { x: destLeftX + 5, y: y - 12, size: 8 });
-  page.drawText(`Ubicación: ${datos.destino?.ubicacion || ''}`, { x: destLeftX + 5, y: y - fieldH - 12, size: 8 });
+        <div style="font-weight: bold; font-size: 1.3em;">Destino:</div>
+        <table style="width: 100%;  margin-bottom: 15px;">
+            <tr>
+                <td style="border: 1px solid #888; vertical-align: top; width: 40%;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="border-bottom: 1px solid #888; font-weight: bold; padding: 2px 4px;">Centro de faenamiento:</td>
+                            <td style="border-bottom: 1px solid #888; padding: 2px 4px;">${datos.destinoFaenamiento || ''}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 2px 4px;">Ubicación:</td>
+                            <td style="padding: 2px 4px;">${datos.destinoUbicacion || ''}</td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="border: 1px solid #888; vertical-align: top; width: 60%;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="border-bottom: 1px solid #888; font-weight: bold; padding: 2px 4px; width: 25%;">Predio:</td>
+                            <td style="border-bottom: 1px solid #888; padding: 2px 4px; width: 25%;">${datos.destinoPredio || ''}</td>
+                            <td style="border-bottom: 1px solid #888; font-weight: bold; padding: 2px 4px; width: 25%;">Nombre del predio:</td>
+                            <td style="border-bottom: 1px solid #888; padding: 2px 4px; width: 25%;">${datos.destinoNombrePredio || ''}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 2px 4px; width: 25%;">Dirección o referencia:</td>
+                            <td style="padding: 2px 4px; width: 25%;">${datos.destinoDireccion || ''}</td>
+                            <td style="padding: 2px 4px; width: 25%;">Parroquia:</td>
+                            <td style="padding: 2px 4px; width: 25%;">${datos.destinoParroquia || ''}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
 
-  // Recuadro derecho: "Predio"
-  page.drawRectangle({ x: destRightX, y: y - destBoxH, width: destRightW, height: destBoxH, borderColor, borderWidth });
-  // Línea horizontal divisoria
-  page.drawLine({ start: { x: destRightX, y: y - fieldH }, end: { x: destRightX + destRightW, y: y - fieldH }, thickness: borderWidth });
+        <div class="section-title">
+            II VÍA DE TRANSPORTE
+        </div>
 
-  // División vertical de la fila superior (celda "Predio")
-  const predioCellW = 50;
-  page.drawLine({ start: { x: destRightX + predioCellW, y }, end: { x: destRightX + predioCellW, y: y - fieldH }, thickness: borderWidth });
-  // División vertical de la fila inferior (celda "Parroquia")
-  const parroquiaCellW = 80;
-  page.drawLine({ start: { x: destRightX + destRightW - parroquiaCellW, y: y - fieldH }, end: { x: destRightX + destRightW - parroquiaCellW, y: y - destBoxH }, thickness: borderWidth });
+        <table style="width: 100%; margin-bottom: 15px; font-size: 8px;">
+            <tr>
+                <td style="border: 1px solid #000; padding: 3px; width: 8%; vertical-align: middle;">
+                    <div style="display: inline-block; font-weight: bold;">Terrestre</div>
+                    <div style="display: inline-block; width: 10px; height: 10px; border: 1px solid #000; text-align: center; line-height: 10px; font-weight: bold; font-size: 8px;">${datos.transporteTerrestre ? 'X' : ''}</div>
+                </td>
+                <td style="border: 1px solid #000; padding: 3px; width: 15%; font-weight: bold;" colspan="1">
+                    Tipo de transporte:  ${datos.tipoTransporte || ''}
+                </td>
+                <td style="border: 1px solid #000; padding: 3px; width: 18%; font-weight: bold;" colspan="2">
+                    Nombre del transportista: ${datos.nombreTransportista || ''}
+                </td>
+               
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 3px; font-weight: bold; width: 18%;">
+                  
+                </td>
+                <td style="border: 1px solid #000; padding: 3px; width: 22%;">
+                      No. matrícula / placa: ${datos.matriculaPlaca || ''}
+                </td>
+                <td style="border: 1px solid #000; padding: 3px; font-weight: bold; width: 18%;">
+                    Cédula de identidad:  ${datos.ciTransportista || ''}
+                </td>
+                
+                <td style="border: 1px solid #000; padding: 3px; font-weight: bold; width: 10%;">
+                    Teléfono: ${datos.telefonoTransportista || ''}
+                </td>
+                
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 3px; width: 8%; vertical-align: middle;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="font-weight: bold; margin-right: 5px;">Otros</div>
+                        <div style="width: 10px; height: 10px; border: 1px solid #000; display: inline-block; text-align: center; line-height: 10px; font-weight: bold; font-size: 8px;">
+                            ${datos.transporteOtros ? 'X' : ''}
+                        </div>
+                    </div>
+                </td>
+               
+                <td style="border: 1px solid #000; padding: 3px; width: 15%; font-weight: bold;" colspan="3">
+                    Detalle de otro:  ${datos.detalleOtroTransporte || ''}
+                </td>
+                
+            </tr>
+        </table>
 
-  page.drawText('Predio:', { x: destRightX + 5, y: y - 12, size: 8 });
-  page.drawText(`Nombre del predio: ${datos.destino?.nombrePredio || ''}`, { x: destRightX + predioCellW + 5, y: y - 12, size: 8 });
+        <div class="section-title">
+            III VALIDEZ Y FIRMAS DE RESPONSABILIDAD
+        </div>
 
-  page.drawText(`Dirección o referencia: ${datos.destino?.referencia || ''}`, { x: destRightX + 5, y: y - fieldH - 12, size: 8 });
-  // Adaptar tamaño de fuente si el texto de parroquia no cabe
-  const parroquiaText = `Parroquia: ${datos.destino?.parroquia || ''}`;
-  let parroquiaFontSize = 8;
-  const maxParroquiaWidth = parroquiaCellW - 6; // margen de 5 a la izquierda + 1 px seguridad
-  while (font.widthOfTextAtSize(parroquiaText, parroquiaFontSize) > maxParroquiaWidth && parroquiaFontSize > 5) {
-    parroquiaFontSize -= 0.5; // reducir medio punto hasta que quepa
-  }
-  page.drawText(parroquiaText, {
-    x: destRightX + destRightW - parroquiaCellW + 5,
-    y: y - fieldH - 12,
-    size: parroquiaFontSize,
-  });
+        <div class="inline-flex" style="margin-bottom: 2px;">
+            <span class="label">ESTA GUÍA ES VÁLIDA POR EL TIEMPO DE</span>
+            <span class="value" style="flex: 1;">${datos.validezTiempo || ''}</span>
+            <span class="label" style="margin-left: 4px;">A PARTIR DE LAS</span>
+            <span class="value" style="flex: 0.5;">${datos.validezDesde || ''}</span>
+            <span class="label" style="margin-left: 4px;">HASTA</span>
+            <span class="value" style="flex: 0.5;">${datos.validezHasta || ''}</span>
+        </div>
+        <div class="inline-flex" style="margin-bottom: 4px;">
+            <span class="label">FECHA DE EMISIÓN:</span>
+            <span class="value" style="flex: 1;">${datos.fechaEmision || ''}</span>
+        </div>
 
-  // ---------- COLUMNA 2 : DATOS ADICIONALES ----------
-  y = yOrigen;
-  page.drawText('Datos adicionales:', { x: col2X, y: y - 12, size: 8, font: fontBold });
-  y -= (fieldH + 14);
-  page.drawRectangle({ x: col2X + 50, y, width: 15, height: 15, borderColor, borderWidth });
-  page.drawText('Propio', { x: col2X, y: y + 3, size: 8 });
-  y -= 20;
-  page.drawRectangle({ x: col2X + 50, y, width: 15, height: 15, borderColor, borderWidth });
-  page.drawText('Arrendado', { x: col2X, y: y + 3, size: 8 });
-  y -= 20;
-  page.drawRectangle({ x: col2X + 50, y, width: 15, height: 15, borderColor, borderWidth });
-  page.drawText('Prestado', { x: col2X, y: y + 3, size: 8 });
+        <div class="signature-block" style="margin-top: 2px; margin-bottom: 2px; padding-top: 8px; padding-bottom: 8px;">
+            <div class="signature-item" style="padding-top: 2px; padding-bottom: 2px; font-size: 8px;">
+                <p style="margin-top: 2px; margin-bottom: 2px;">NOMBRE Y FIRMA DEL MÉDICO(A) VETERINARIO(A) / TÉCNICO</p>
+            </div>
+            <div class="signature-item" style="padding-top: 2px; padding-bottom: 2px; font-size: 8px;">
+                <p style="margin-top: 2px; margin-bottom: 2px;">NOMBRE Y FIRMA DEL INTERESADO</p>
+            </div>
+        </div>
+        <p class="small-text" style="margin-top: 1px; margin-bottom: 2px; font-size: 7px;">Original usuario, copia 1 centro de faenamiento, copia 2 área técnica.</p>
 
-  // Ajustamos la "y" para continuar después del bloque Destino completo (dejamos 8 px de margen)
-  y = yOrigen - (fieldH * 7) - 13; // 5 px existentes + 8 px extra de separación
-  // --- SECCIÓN II: TRANSPORTE ---
-  const headerIIHeight = 18;
-  page.drawRectangle({ x: tableX, y: y-headerIIHeight, width: tableWidth, height: headerIIHeight, color: rgb(0.9, 0.9, 0.9), borderColor, borderWidth });
-  page.drawText('II VÍA DE TRANSPORTE', { x: tableX + 5, y: y-12, size: 9, font: fontBold });
-  y -= headerIIHeight;
-  // === NUEVA TABLA DE TRANSPORTE ===
-  const rowTransporteH = 22; // altura de fila definitiva
-  const leftW = 110;
-  const transporteBoxH = rowTransporteH * 3; // Terrestre (2 filas) + Otros (1 fila)
-  const xRightStart = tableX + leftW;
-
-  // Marco general
-  page.drawRectangle({ x: tableX, y: y - transporteBoxH, width: tableWidth, height: transporteBoxH, borderColor, borderWidth });
-
-  // Líneas horizontales (solo a la derecha de la columna de rótulos)
-  page.drawLine({ start: { x: xRightStart, y: y - rowTransporteH }, end: { x: tableX + tableWidth, y: y - rowTransporteH }, thickness: borderWidth });
-  page.drawLine({ start: { x: xRightStart, y: y - rowTransporteH * 2 }, end: { x: tableX + tableWidth, y: y - rowTransporteH * 2 }, thickness: borderWidth });
-
-  // Línea vertical que separa la columna izquierda
-  page.drawLine({ start: { x: xRightStart, y }, end: { x: xRightStart, y: y - transporteBoxH }, thickness: borderWidth });
-
-  // Líneas verticales internas (fila superior y fila intermedia)
-  const wTipo = 200; // ancho celda "Tipo de transporte"
-  page.drawLine({ start: { x: xRightStart + wTipo, y }, end: { x: xRightStart + wTipo, y: y - rowTransporteH }, thickness: borderWidth });
-
-  const wPlaca = 150;    // ancho celda "Placa"
-  const wCedula = 130;   // ancho celda "Cédula"
-  const phoneCellW = tableWidth - wPlaca - wCedula - 5; // ancho restante para teléfono (aprox 110 px)
-  page.drawLine({ start: { x: xRightStart + wPlaca, y: y - rowTransporteH }, end: { x: xRightStart + wPlaca, y: y - rowTransporteH * 2 }, thickness: borderWidth });
-  page.drawLine({ start: { x: xRightStart + wPlaca + wCedula, y: y - rowTransporteH }, end: { x: xRightStart + wPlaca + wCedula, y: y - rowTransporteH * 2 }, thickness: borderWidth });
-
-  // ----- CONTENIDO TERRESTRE -----
-  // ---- Terrestre ----
-  page.drawText('Terrestre', { x: tableX + 15, y: y - 12, size: 10, font: fontBold });
-  page.drawRectangle({ x: tableX + leftW - 25, y: y - (rowTransporteH/2) - 6, width: 15, height: 15, borderColor, borderWidth });
-
-  const labelTipo = 'Tipo de transporte:';
-  const tipoLabelW = fontBold.widthOfTextAtSize(labelTipo, 8);
-  page.drawText(labelTipo, { x: xRightStart + 5, y: y - 10, size: 8, font: fontBold });
-  page.drawText(`${datos.transporte?.tipo || ''}`, { x: xRightStart + 5 + tipoLabelW + 5, y: y - 10, size: 8 });
-
-  const labelTransp = 'Nombre del transportista:';
-  const transpLabelW = fontBold.widthOfTextAtSize(labelTransp, 8);
-  page.drawText(labelTransp, { x: xRightStart + wTipo + 5, y: y - 10, size: 8, font: fontBold });
-  page.drawText(`${datos.transporte?.nombreTransportista || ''}`, { x: xRightStart + wTipo + 5 + transpLabelW + 5, y: y - 10, size: 8 });
-
-  // ----- Fila intermedia -----
-  const labelPlaca = 'No. matrícula / placa:';
-  const placaLabelW = fontBold.widthOfTextAtSize(labelPlaca, 8);
-  page.drawText(labelPlaca, { x: xRightStart + 5, y: y - rowTransporteH - 12, size: 8, font: fontBold });
-  page.drawText(`${datos.transporte?.placa || ''}`, { x: xRightStart + 5 + placaLabelW + 5, y: y - rowTransporteH - 12, size: 8 });
-
-  const labelCedula = 'Cédula de identidad:';
-  const cedulaLabelW = fontBold.widthOfTextAtSize(labelCedula, 8);
-  page.drawText(labelCedula, { x: xRightStart + wPlaca + 5, y: y - rowTransporteH - 12, size: 8, font: fontBold });
-  const cedulaX = xRightStart + wPlaca + 5 + cedulaLabelW + 5;
-  let cedFont = 8;
-  const cedulaVal = `${datos.transporte?.cedula || ''}`;
-  while (font.widthOfTextAtSize(cedulaVal, cedFont) > wCedula - cedulaLabelW - 15 && cedFont > 6) {
-      cedFont -= 0.5;
-  }
-  page.drawText(cedulaVal, { x: cedulaX, y: y - rowTransporteH - 12, size: cedFont });
-
-  page.drawText('Teléfono:', { x: xRightStart + wPlaca + wCedula + 5, y: y - rowTransporteH - 12, size: 8, font: fontBold });
-  const phoneVal = `${datos.transporte?.telefono || ''}`;
-  let phoneFont = 8;
-  while (font.widthOfTextAtSize(phoneVal, phoneFont) > phoneCellW - 60 && phoneFont > 6) {
-      phoneFont -= 0.5;
-  }
-  page.drawText(phoneVal, { x: xRightStart + wPlaca + wCedula + 60, y: y - rowTransporteH - 12, size: phoneFont });
-
-  // ----- CONTENIDO OTROS -----
-  // ---- Otros ----
-  page.drawText('Otros', { x: tableX + 15, y: y - rowTransporteH * 2 - 12, size: 10, font: fontBold });
-  page.drawRectangle({ x: tableX + leftW - 25, y: y - rowTransporteH * 2 - (rowTransporteH/2) - 6, width: 15, height: 15, borderColor, borderWidth });
-
-  page.drawText('Detalle de otro:', { x: xRightStart + 5, y: y - rowTransporteH * 2 - 12, size: 8, font: fontBold });
-  page.drawText(`${datos.transporte?.detalleOtro || ''}`, { x: xRightStart + 105, y: y - rowTransporteH * 2 - 12, size: 8 });
-
-  y -= (transporteBoxH + 10);
-  // --- SECCIÓN III: VALIDEZ ---
-  const headerIIIHeight = 18;
-  page.drawRectangle({ x: tableX, y: y-headerIIIHeight, width: tableWidth, height: headerIIIHeight, color: rgb(0.9, 0.9, 0.9), borderColor, borderWidth });
-  page.drawText('III VALIDEZ Y FIRMAS DE RESPONSABILIDAD', { x: tableX + 5, y: y-12, size: 9, font: fontBold });
-  y -= headerIIIHeight;
-  
-  const validezBoxH = 80;
-  page.drawRectangle({ x: tableX, y: y-validezBoxH, width: tableWidth, height: validezBoxH, borderColor, borderWidth });
-  page.drawText(`ESTA GUÍA ES VÁLIDA POR EL TIEMPO DE ___________________ A PARTIR DE LAS ____ : ____ HASTA ____ : ____`, {x: tableX + 5, y: y-15, size:8});
-  page.drawText(`FECHA DE EMISIÓN: ___________________`, {x: tableX + 5, y: y-30, size:8});
-  
-  page.drawLine({start: {x: tableX + 30, y: y-65}, end: {x: tableX + 220, y: y-65}, thickness: 0.5});
-  page.drawText('NOMBRE Y FIRMA DEL MÉDICO(A) VETERINARIO(A) / TÉCNICO', {x: tableX + 5, y: y-75, size:7});
-  
-  page.drawLine({start: {x: tableX + 280, y: y-65}, end: {x: tableX + 480, y: y-65}, thickness: 0.5});
-  page.drawText('NOMBRE Y FIRMA DEL INTERESADO', {x: tableX + 300, y: y-75, size:7});
-  page.drawText('Original usuario, copia 1 centro de faenamiento, copia 2 área técnica.', {x: tableX + 5, y: y-90, size:7});
-
-  y -= (validezBoxH + 10);
-
-  // --- PIE DE PÁGINA ---
-  const footerY = 20;
-  page.drawText('Dirección: Av. Baltra, diagonal a la gruta del Divino Niño', { x: tableX, y: footerY + 28, size: 7, font });
-  page.drawText('Código postal: EC200350 / Puerto Ayora-Ecuador', { x: tableX, y: footerY + 20, size: 7, font });
-  page.drawText('Teléfono: +593-5 252 7414', { x: tableX, y: footerY + 12, size: 7, font });
-  page.drawText('www.bioseguridadgalapagos.gob.ec', { x: tableX, y: footerY + 4, size: 7, font });
-  
-  if (nuevoEcuadorImage) {
-    page.drawImage(nuevoEcuadorImage, { x: 450, y: footerY, width: 100, height: 40 });
-  }
-
-  const pdfBytes = await pdfDoc.save();
-  return pdfBytes;
+        <div class="footer" style="margin-top: 2px; margin-bottom: 2px; align-items: flex-end;">
+            <div class="footer-info" style="font-size: 7px; margin-top: 0; line-height: 1.1;">
+                <p style="margin-top: 1px; margin-bottom: 1px;">Dirección: Av. Baltra, diagonal a la gruta del Divino Niño</p>
+                <p style="margin-top: 1px; margin-bottom: 1px;">Código postal: EC200350/ Puerto Ayora-Ecuador</p>
+                <p style="margin-top: 1px; margin-bottom: 1px;">Teléfono: +593-5 252 7414</p>
+                <p style="margin-top: 1px; margin-bottom: 1px;">www.bioseguridadgalapagos.gob.ec</p>
+            </div>
+            <div class="footer-logo" style="text-align: right;">
+                <img src="${nuevoEcuadorBase64}" alt="El Nuevo Ecuador" style="height: 22px;">
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
 }
 
 module.exports = { generarCertificadoPDF }; 
