@@ -8,6 +8,7 @@ const usuarioRoutes = require('./routes/usuarioRoutes');
 const authRoutes = require('./routes/auth');
 const movilizacionRoutes = require('./routes/movilizaciones');
 const pdfRoutes = require('./routes/pdfRoutes');
+const reporteRoutes = require('./routes/reporteRoutes'); // <-- RUTA AGREGADA
 const { actualizarEstadosAutomaticos } = require('./controllers/movilizacionController');
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/movilizaciones', movilizacionRoutes);
 app.use('/api/pdf', pdfRoutes);
+app.use('/api/reportes', reporteRoutes); // <-- RUTA AGREGADA
 
 app.get('/', (req, res) => {
   res.json({ message: 'API de Movilización de Ganado' });
