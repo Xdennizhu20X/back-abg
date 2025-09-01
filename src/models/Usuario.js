@@ -41,7 +41,7 @@ module.exports = (sequelize) => {
       }
     },
     rol: {
-      type: DataTypes.ENUM('ganadero', 'tecnico', 'admin'),
+      type: DataTypes.ENUM('ganadero', 'tecnico', 'admin', 'faenador'),
       allowNull: false
     },
     fecha_registro: {

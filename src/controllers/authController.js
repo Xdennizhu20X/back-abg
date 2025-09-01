@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const path = require('path');
 const { Usuario } = require('../models');
 const { sendEmail } = require('../utils/mailer');
 
@@ -89,6 +90,67 @@ const register = async (req, res) => {
       ci,
       telefono
     });
+
+    // Enviar correo de bienvenida
+    try {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="cid:nuevo_ecuador" alt="Logo" style="width: 350px;"/>
+          </div>
+          <h2 style="color: #333; text-align: center;">¡Bienvenido a nuestra plataforma ABG!</h2>
+          <p>Hola ${usuario.nombre},</p>
+          <p>La ABG te da la Bienvenida</p>
+          <p>Tu registro ha sido exitoso. Ahora puedes disfrutar de todos nuestros servicios.</p>
+          <p>¡Gracias por unirte!</p>
+          <p>Saludos,<br>El equipo de Soporte</p>
+        </div>
+      `;
+      const attachments = [{
+        filename: 'nuevologo.png',
+        path: path.join(__dirname, '..', 'assets', 'nuevologo.png'),
+        cid: 'nuevo_ecuador'
+      }];
+
+      await sendEmail(usuario.email, 'Registro Exitoso', emailHtml, attachments);
+    } catch (emailError) {
+      console.error('Error al enviar el correo de bienvenida:', emailError);
+      // Opcional: podrías querer manejar este error de alguna manera,
+      // pero sin que falle el registro completo.
+    }
+
+    // Notificar a los administradores
+    try {
+      const admins = await Usuario.findAll({ where: { rol: 'admin' } });
+      if (admins && admins.length > 0) {
+        const adminEmails = admins.map(admin => admin.email);
+        const adminHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="cid:nuevo_ecuador" alt="Logo" style="width: 350px;"/>
+          </div>
+            <h2 style="color: #333; text-align: center;">Nuevo Registro de Usuario</h2>
+            <p>Se ha registrado un nuevo usuario en la plataforma.</p>
+            <p><strong>Detalles del usuario:</strong></p>
+            <ul>
+              <li><strong>Nombre:</strong> ${usuario.nombre}</li>
+              <li><strong>Email:</strong> ${usuario.email}</li>
+              <li><strong>CI:</strong> ${usuario.ci}</li>
+              <li><strong>Rol:</strong> ${usuario.rol}</li>
+            </ul>
+          </div>
+        `;
+        const attachments = [{
+          filename: 'nuevologo.png',
+          path: path.join(__dirname, '..', 'assets', 'nuevologo.png'),
+          cid: 'nuevo_ecuador'
+        }];
+        
+        await sendEmail(adminEmails, 'Nuevo Usuario Registrado', adminHtml, attachments);
+      }
+    } catch (adminEmailError) {
+      console.error('Error al notificar a los administradores:', adminEmailError);
+    }
 
     const token = jwt.sign(
       { id: usuario.id, email: usuario.email, rol: usuario.rol },

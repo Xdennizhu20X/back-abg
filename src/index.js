@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const { syncDatabase, sequelize } = require('./config/database'); 
 const keepDatabaseAlive = require('./utils/dbKeepAlive'); 
+
 
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const authRoutes = require('./routes/auth');

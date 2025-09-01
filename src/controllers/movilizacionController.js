@@ -3,6 +3,7 @@ const { generarCertificadoPDF } = require('../utils/pdfCertificado');
 const { transformarDatosParaCertificado } = require('../helpers/movilizacion.helpers');
 const { Op } = require('sequelize');
 const fs = require('fs'); // Agrega esta línea con las otras importaciones
+const path = require('path');
 const { sendEmail } = require('../utils/mailer');
 
 const registrarMovilizacionCompleta = async (req, res) => {
@@ -84,6 +85,65 @@ const registrarMovilizacionCompleta = async (req, res) => {
     }
 
     await t.commit();
+
+    // Enviar correos de notificación
+    try {
+      const solicitante = await Usuario.findByPk(usuario_id);
+      const attachments = [{
+        filename: 'nuevologo.png',
+        path: path.join(__dirname, '..', 'utils', 'assets', 'nuevo_ecuador.png'),
+        cid: 'nuevo_ecuador'
+      }];
+
+      // 1. Notificación al usuario que registra
+      if (solicitante) {
+        const userHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2 style="color: #333; text-align: center;">Registro de Movilización Exitoso</h2>
+            <p>Hola ${solicitante.nombre},</p>
+            <p>Tu solicitud de movilización con ID <strong>${movilizacion.id}</strong> ha sido registrada correctamente.</p>
+            <p>Desde: ${origen.nombre}</p>
+            <p>Hacia: ${destinoPredio.nombre}</p>
+            <p>Puedes ver el estado de tu solicitud en la plataforma.</p>
+            <p>Saludos,<br>El equipo de Soporte</p>
+          </div>
+        `;
+        await sendEmail(solicitante.email, `Registro Exitoso - Movilización #${movilizacion.id}`, userHtml, attachments);
+      }
+
+      // 2. Notificación a los administradores
+      const admins = await Usuario.findAll({ where: { rol: 'admin' } });
+      if (admins && admins.length > 0) {
+        const adminEmails = admins.map(admin => admin.email);
+        const adminHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2 style="color: #333; text-align: center;">Nueva Movilización Registrada</h2>
+            <p>Se ha registrado una nueva solicitud de movilización.</p>
+            <p><strong>Detalles:</strong></p>
+            <ul>
+              <li><strong>ID Movilización:</strong> ${movilizacion.id}</li>
+              <li><strong>Solicitante:</strong> ${solicitante ? solicitante.nombre : 'N/A'} (${solicitante ? solicitante.email : 'N/A'})</li>
+              <li><strong>Predio Origen:</strong> ${origen.nombre} (${origen.localidad}, ${origen.parroquia})</li>
+              <li><strong>Predio Destino:</strong> ${destinoPredio.nombre} (${destinoPredio.parroquia}, ${destinoPredio.ubicacion})</li>
+              <li><strong>Fecha Solicitud:</strong> ${new Date(fecha).toLocaleDateString()}</li>
+            </ul>
+            <p>Por favor, revisa la solicitud en el panel de administración.</p>
+          </div>
+        `;
+        await sendEmail(adminEmails, `Nueva Movilización para Revisión - #${movilizacion.id}`, adminHtml, attachments);
+      }
+
+    } catch (emailError) {
+      console.error('Error al enviar correos de notificación de movilización:', emailError);
+      // No interrumpir el flujo principal si los correos fallan
+    }
+
     res.status(201).json({
       success: true,
       message: 'Movilización registrada correctamente',
@@ -308,29 +368,45 @@ const actualizarEstadoMovilizacion = async (req, res) => {
     const asunto = `Movilización ${nuevoEstado}`;
     const fechaActual = new Date().toLocaleString();
 
+    const attachments = [{
+      filename: 'nuevologo.png',
+      path: path.join(__dirname, '..', 'utils', 'assets', 'nuevo_ecuador.png'),
+      cid: 'nuevo_ecuador'
+    }];
+
     let mensaje = '';
 
     if (nuevoEstado === 'alerta') {
       mensaje = `
-        <h2>🚨 Alerta en Movilización</h2>
-        <p>La movilización desde <strong>${movilizacion.predio_origen?.nombre}</strong> hacia 
-        <strong>${movilizacion.predio_destino?.nombre}</strong> ha sido marcada como <strong>ALERTA</strong>.</p>
-        <p><strong>Fecha:</strong> ${fechaActual}</p>
-        <p>Por favor, tome las acciones necesarias.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+          </div>
+          <h2>🚨 Alerta en Movilización</h2>
+          <p>La movilización desde <strong>${movilizacion.predio_origen?.nombre}</strong> hacia 
+          <strong>${movilizacion.predio_destino?.nombre}</strong> ha sido marcada como <strong>ALERTA</strong>.</p>
+          <p><strong>Fecha:</strong> ${fechaActual}</p>
+          <p>Por favor, tome las acciones necesarias.</p>
+        </div>
       `;
     } else {
       mensaje = `
-        <h2>✅ Movilización Finalizada</h2>
-        <p>La movilización desde <strong>${movilizacion.predio_origen?.nombre}</strong> hacia 
-        <strong>${movilizacion.predio_destino?.nombre}</strong> ha sido <strong>FINALIZADA</strong>.</p>
-        <p><strong>Fecha de finalización:</strong> ${fechaActual}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+          </div>
+          <h2>✅ Movilización Finalizada</h2>
+          <p>La movilización desde <strong>${movilizacion.predio_origen?.nombre}</strong> hacia 
+          <strong>${movilizacion.predio_destino?.nombre}</strong> ha sido <strong>FINALIZADA</strong>.</p>
+          <p><strong>Fecha de finalización:</strong> ${fechaActual}</p>
+        </div>
       `;
     }
 
     // Enviar correo con manejo de error
     try {
       console.log(`Enviando correo a ${usuarioEmail}...`);
-      await sendEmail(usuarioEmail, asunto, mensaje);
+      await sendEmail(usuarioEmail, asunto, mensaje, attachments);
       console.log('Correo enviado con éxito.');
     } catch (emailError) {
       console.error('Error al enviar el correo:', emailError.message);
@@ -390,19 +466,30 @@ const actualizarEstadosAutomaticos = async () => {
     if (updated > 0) {
       console.log(`✔ ${updated} movilizaciones actualizadas a 'alerta' automáticamente`);
       
+      const attachments = [{
+        filename: 'nuevologo.png',
+        path: path.join(__dirname, '..', 'utils', 'assets', 'nuevo_ecuador.png'),
+        cid: 'nuevo_ecuador'
+      }];
+
       // Enviar emails de notificación
       for (const mov of movilizaciones) {
         const asunto = 'Alerta Automática: Movilización Pendiente por 72 horas';
         const mensaje = `
-          <h2>Alerta Automática</h2>
-          <p>La movilización desde ${mov.predio_origen.nombre} hacia 
-          ${mov.predio_destino.nombre} ha sido marcada como ALERTA automáticamente 
-          por haber permanecido más de 72 horas en estado pendiente.</p>
-          <p>Fecha: ${new Date().toLocaleString()}</p>
-          <p>Por favor, tome las acciones necesarias.</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2>Alerta Automática</h2>
+            <p>La movilización desde ${mov.predio_origen.nombre} hacia 
+            ${mov.predio_destino.nombre} ha sido marcada como ALERTA automáticamente 
+            por haber permanecido más de 72 horas en estado pendiente.</p>
+            <p>Fecha: ${new Date().toLocaleString()}</p>
+            <p>Por favor, tome las acciones necesarias.</p>
+          </div>
         `;
         
-        await sendEmail(mov.Usuario.email, asunto, mensaje);
+        await sendEmail(mov.Usuario.email, asunto, mensaje, attachments);
       }
     }
 

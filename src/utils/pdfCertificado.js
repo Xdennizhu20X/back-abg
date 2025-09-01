@@ -56,34 +56,31 @@ async function generarCertificadoPDF(datos) {
 
 
   // Cargar imágenes como base64
-  const escudoBase64 = await loadImageBase64('escudo_ecuador.png');
+    const escudoBase64 = await loadImageBase64('escudo_ecuador.png');
   const nuevoEcuadorBase64 = await loadImageBase64('nuevo_ecuador.png');
 
-  // Generar HTML del certificado con los datos mapeados
+  // 3. Generar HTML
   const htmlContent = generarHTMLCertificado(datosMapeados, escudoBase64, nuevoEcuadorBase64);
 
-  // Usar Puppeteer para convertir HTML a PDF
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: puppeteer.executablePath(),
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--single-process'
-    ]
-  });
-
+  let browser;
   try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage'
+      ]
+    });
+
     const page = await browser.newPage();
-    
-    // Configurar la página para A4
-    await page.setViewport({ width: 794, height: 1123 }); // A4 en píxeles (96 DPI)
-    
-    // Establecer el contenido HTML
+    await page.setViewport({ width: 794, height: 1123 });
+
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-    // Generar PDF
+    // Espera extra para imágenes / QR
+    await new Promise(r => setTimeout(r, 1000));
+
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -91,8 +88,11 @@ async function generarCertificadoPDF(datos) {
     });
 
     return pdf;
+  } catch (err) {
+    console.error("❌ Error al generar PDF:", err.message);
+    throw new Error("No se pudo generar el certificado en PDF");
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }
 
