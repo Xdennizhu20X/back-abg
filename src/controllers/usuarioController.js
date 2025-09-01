@@ -1,5 +1,55 @@
 const { Usuario } = require('../models');
 const jwt = require('jsonwebtoken');
+const { sendEmail } = require('../utils/mailer');
+const path = require('path');
+
+const aprobarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario = await Usuario.findByPk(id);
+
+    if (!usuario) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    if (usuario.estado === 'activo') {
+        return res.status(400).json({ success: false, message: 'El usuario ya se encuentra activo' });
+    }
+
+    usuario.estado = 'activo';
+    await usuario.save();
+
+    // Notificar al usuario por correo
+    try {
+      const attachments = [{
+        filename: 'nuevologo.png',
+        path: path.join(__dirname, '..', 'utils', 'assets', 'nuevo_ecuador.png'),
+        cid: 'nuevo_ecuador'
+      }];
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2 style="color: #333; text-align: center;">¡Tu cuenta ha sido aprobada!</h2>
+            <p>Hola ${usuario.nombre},</p>
+            <p>¡Buenas noticias! Un administrador ha aprobado tu cuenta. Ya puedes iniciar sesión en la plataforma con tu correo y contraseña.</p>
+            <p>¡Gracias por unirte!</p>
+            <p>Saludos,<br>El equipo de Soporte</p>
+        </div>
+      `;
+      await sendEmail(usuario.email, 'Tu cuenta ha sido activada', emailHtml, attachments);
+    } catch (emailError) {
+      console.error('Error al enviar el correo de aprobación:', emailError);
+    }
+
+    res.json({ success: true, message: 'Usuario aprobado y notificado correctamente' });
+
+  } catch (error) {
+    console.error('Error al aprobar usuario:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
 
 // Registrar un nuevo usuario
 const registrarUsuario = async (req, res) => {
@@ -177,10 +227,61 @@ const eliminarUsuario = async (req, res) => {
   }
 };
 
+const rechazarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario = await Usuario.findByPk(id);
+
+    if (!usuario) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    if (usuario.estado !== 'pendiente') {
+      return res.status(400).json({ success: false, message: 'Solo se puede rechazar un usuario con estado pendiente' });
+    }
+
+    const userEmail = usuario.email;
+    const userName = usuario.nombre;
+
+    try {
+      const attachments = [{
+        filename: 'nuevologo.png',
+        path: path.join(__dirname, '..', 'utils', 'assets', 'nuevo_ecuador.png'),
+        cid: 'nuevo_ecuador'
+      }];
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2 style="color: #333; text-align: center;">Solicitud de Registro Rechazada</h2>
+            <p>Hola ${userName},</p>
+            <p>Lamentamos informarte que tu solicitud de registro para la plataforma ha sido rechazada por un administrador.</p>
+            <p>Si crees que esto es un error, por favor, contacta con el soporte.</p>
+            <p>Saludos,<br>El equipo de Soporte</p>
+        </div>
+      `;
+      await sendEmail(userEmail, 'Tu solicitud de registro ha sido rechazada', emailHtml, attachments);
+    } catch (emailError) {
+      console.error('Error al enviar el correo de rechazo:', emailError);
+    }
+
+    await usuario.destroy();
+
+    res.json({ success: true, message: 'Usuario rechazado y eliminado correctamente' });
+
+  } catch (error) {
+    console.error('Error al rechazar usuario:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   registrarUsuario,
   obtenerPerfil,
   obtenerUsuarios,
   actualizarUsuario,
   eliminarUsuario,
+  aprobarUsuario,
+  rechazarUsuario,
 }; 

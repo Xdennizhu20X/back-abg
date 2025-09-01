@@ -48,7 +48,7 @@ const register = async (req, res) => {
     }
 
     // Validar rol si se proporciona
-    if (rol && !['ganadero', 'tecnico', 'admin'].includes(rol)) {
+    if (rol && !['ganadero', 'tecnico', 'admin', 'faenador'].includes(rol)) {
       return res.status(400).json({
         success: false,
         message: 'El rol debe ser uno de: ganadero, tecnico, admin'
@@ -81,101 +81,161 @@ const register = async (req, res) => {
       });
     }
 
+    // Asignar rol y estado
+    const userRol = rol || 'ganadero';
+    const userEstado = ['tecnico', 'faenador'].includes(userRol) ? 'pendiente' : 'activo';
+
     // Crear el nuevo usuario
     const usuario = await Usuario.create({
       nombre,
       email,
       password,
-      rol: rol || 'ganadero',
+      rol: userRol,
       ci,
-      telefono
+      telefono,
+      estado: userEstado
     });
 
-    // Enviar correo de bienvenida
-    try {
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <img src="cid:nuevo_ecuador" alt="Logo" style="width: 350px;"/>
-          </div>
-          <h2 style="color: #333; text-align: center;">¡Bienvenido a nuestra plataforma ABG!</h2>
-          <p>Hola ${usuario.nombre},</p>
-          <p>La ABG te da la Bienvenida</p>
-          <p>Tu registro ha sido exitoso. Ahora puedes disfrutar de todos nuestros servicios.</p>
-          <p>¡Gracias por unirte!</p>
-          <p>Saludos,<br>El equipo de Soporte</p>
-        </div>
-      `;
-      const attachments = [{
-        filename: 'nuevologo.png',
-        path: path.join(__dirname, '..', 'assets', 'nuevologo.png'),
-        cid: 'nuevo_ecuador'
-      }];
+    const attachments = [{
+      filename: 'nuevologo.png',
+      path: path.join(__dirname, '..', 'assets', 'nuevologo.png'),
+      cid: 'nuevo_ecuador'
+    }];
 
-      await sendEmail(usuario.email, 'Registro Exitoso', emailHtml, attachments);
-    } catch (emailError) {
-      console.error('Error al enviar el correo de bienvenida:', emailError);
-      // Opcional: podrías querer manejar este error de alguna manera,
-      // pero sin que falle el registro completo.
-    }
+    // --- Lógica de Notificación y Respuesta ---
 
-    // Notificar a los administradores
-    try {
-      const admins = await Usuario.findAll({ where: { rol: 'admin' } });
-      if (admins && admins.length > 0) {
-        const adminEmails = admins.map(admin => admin.email);
-        const adminHtml = `
+    // 1. Para usuarios que requieren aprobación
+    if (userEstado === 'pendiente') {
+      // Enviar correo de bienvenida al usuario pendiente
+      try {
+        const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <img src="cid:nuevo_ecuador" alt="Logo" style="width: 350px;"/>
-          </div>
-            <h2 style="color: #333; text-align: center;">Nuevo Registro de Usuario</h2>
-            <p>Se ha registrado un nuevo usuario en la plataforma.</p>
-            <p><strong>Detalles del usuario:</strong></p>
-            <ul>
-              <li><strong>Nombre:</strong> ${usuario.nombre}</li>
-              <li><strong>Email:</strong> ${usuario.email}</li>
-              <li><strong>CI:</strong> ${usuario.ci}</li>
-              <li><strong>Rol:</strong> ${usuario.rol}</li>
-            </ul>
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2 style="color: #333; text-align: center;">¡Registro Recibido!</h2>
+            <p>Hola ${usuario.nombre},</p>
+            <p>Hemos recibido tu solicitud de registro. Tu cuenta para el rol de <strong>${userRol}</strong> está actualmente pendiente de aprobación por un administrador.</p>
+            <p>Te notificaremos por este medio una vez que tu cuenta sea activada.</p>
+            <p>¡Gracias por tu paciencia!</p>
+            <p>Saludos,<br>El equipo de Soporte</p>
           </div>
         `;
-        const attachments = [{
-          filename: 'nuevologo.png',
-          path: path.join(__dirname, '..', 'assets', 'nuevologo.png'),
-          cid: 'nuevo_ecuador'
-        }];
-        
-        await sendEmail(adminEmails, 'Nuevo Usuario Registrado', adminHtml, attachments);
+        await sendEmail(usuario.email, 'Registro Pendiente de Aprobación', emailHtml, attachments);
+      } catch (emailError) {
+        console.error('Error al enviar el correo de bienvenida (pendiente):', emailError);
       }
-    } catch (adminEmailError) {
-      console.error('Error al notificar a los administradores:', adminEmailError);
+
+      // Notificar a los administradores
+      try {
+        const admins = await Usuario.findAll({ where: { rol: 'admin' } });
+        if (admins && admins.length > 0) {
+          const adminEmails = admins.map(admin => admin.email);
+          const adminHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+              </div>
+              <h2 style="color: #333; text-align: center;">Nuevo Usuario Pendiente de Aprobación</h2>
+              <p>Se ha registrado un nuevo usuario que requiere aprobación.</p>
+              <p><strong>Detalles del usuario:</strong></p>
+              <ul>
+                <li><strong>Nombre:</strong> ${usuario.nombre}</li>
+                <li><strong>Email:</strong> ${usuario.email}</li>
+                <li><strong>CI:</strong> ${usuario.ci}</li>
+                <li><strong>Rol:</strong> ${usuario.rol}</li>
+              </ul>
+              <p>Por favor, ve al panel de administración para aprobar o rechazar esta solicitud.</p>
+            </div>
+          `;
+          await sendEmail(adminEmails, 'Nuevo Usuario para Aprobación', adminHtml, attachments);
+        }
+      } catch (adminEmailError) {
+        console.error('Error al notificar a los administradores (pendiente):', adminEmailError);
+      }
+
+      // Responder al usuario sin token
+      res.status(201).json({
+        success: true,
+        message: 'Usuario registrado exitosamente. Tu cuenta está pendiente de aprobación.',
+        data: {
+          usuario: {
+            id: usuario.id,
+            nombre: usuario.nombre,
+            email: usuario.email,
+            rol: usuario.rol,
+            estado: usuario.estado
+          }
+        }
+      });
+
+    } else {
+      // 2. Para usuarios que se activan automáticamente
+      // Enviar correo de bienvenida estándar
+      try {
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo" style="width: 150px;"/>
+            </div>
+            <h2 style="color: #333; text-align: center;">¡Bienvenido a nuestra plataforma!</h2>
+            <p>Hola ${usuario.nombre},</p>
+            <p>Tu registro ha sido exitoso. Ahora puedes disfrutar de todos nuestros servicios.</p>
+            <p>¡Gracias por unirte!</p>
+            <p>Saludos,<br>El equipo de Soporte</p>
+          </div>
+        `;
+        await sendEmail(usuario.email, 'Registro Exitoso', emailHtml, attachments);
+      } catch (emailError) {
+        console.error('Error al enviar el correo de bienvenida (activo):', emailError);
+      }
+
+      // Notificar a los administradores (opcional, pero mantenemos la consistencia)
+      try {
+        const admins = await Usuario.findAll({ where: { rol: 'admin' } });
+        if (admins && admins.length > 0) {
+          const adminEmails = admins.map(admin => admin.email);
+          const adminHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+              <h2 style="color: #333; text-align: center;">Nuevo Usuario Registrado</h2>
+              <p>Se ha registrado un nuevo usuario en la plataforma.</p>
+              <p><strong>Detalles del usuario:</strong></p>
+              <ul>
+                <li><strong>Nombre:</strong> ${usuario.nombre}</li>
+                <li><strong>Email:</strong> ${usuario.email}</li>
+                <li><strong>Rol:</strong> ${usuario.rol}</li>
+                <li><strong>Estado:</strong> ${usuario.estado}</li>
+              </ul>
+            </div>
+          `;
+          await sendEmail(adminEmails, 'Nuevo Usuario Registrado', adminHtml, attachments);
+        }
+      } catch (adminEmailError) {
+        console.error('Error al notificar a los administradores (activo):', adminEmailError);
+      }
+
+      // Generar token y responder
+      const token = jwt.sign(
+        { id: usuario.id, email: usuario.email, rol: usuario.rol },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Usuario registrado exitosamente',
+        data: {
+          usuario: {
+            id: usuario.id,
+            nombre: usuario.nombre,
+            email: usuario.email,
+            rol: usuario.rol,
+            estado: usuario.estado
+          },
+          token
+        }
+      });
     }
-
-    const token = jwt.sign(
-      { id: usuario.id, email: usuario.email, rol: usuario.rol },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    const usuarioResponse = {
-      id: usuario.id,
-      nombre: usuario.nombre,
-      email: usuario.email,
-      ci: usuario.ci,
-      telefono: usuario.telefono, // Incluir teléfono en la respuesta
-      rol: usuario.rol,
-      fecha_registro: usuario.fecha_registro
-    };
-
-    res.status(201).json({
-      success: true,
-      message: 'Usuario registrado exitosamente',
-      data: {
-        usuario: usuarioResponse,
-        token
-      }
-    });
   } catch (error) {
     console.error('Error al registrar usuario:', error);
     res.status(500).json({
@@ -220,6 +280,14 @@ const login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas'
+      });
+    }
+
+    // Verificar si la cuenta está activa
+    if (usuario.estado === 'pendiente') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tu cuenta está pendiente de aprobación por un administrador.'
       });
     }
 

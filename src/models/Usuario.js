@@ -44,6 +44,11 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM('ganadero', 'tecnico', 'admin', 'faenador'),
       allowNull: false
     },
+    estado: {
+      type: DataTypes.ENUM('activo', 'pendiente'),
+      defaultValue: 'activo',
+      allowNull: false
+    },
     fecha_registro: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
