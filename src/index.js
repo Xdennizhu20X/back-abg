@@ -1,4 +1,7 @@
 require('dotenv').config();
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
@@ -73,8 +76,14 @@ const startServer = async () => {
       keepDatabaseAlive(sequelize); // 👈 llamada al keep-alive
     }
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Servidor corriendo en el puerto ${PORT}`);
+
+    const httpsOptions = {
+      key: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'key.pem')),
+      cert: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'cert.pem'))
+    };
+
+    https.createServer(httpsOptions, app).listen(PORT, () => {
+      console.log(`Servidor HTTPS corriendo en el puerto ${PORT}`);
     });
   } catch (error) {
     console.error('No se pudo iniciar el servidor:', error);
