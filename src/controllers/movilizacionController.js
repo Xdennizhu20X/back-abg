@@ -547,10 +547,11 @@ const generarCertificadoMovilizacion = async (req, res) => {
     res.send(Buffer.from(pdfBytes));
 
   } catch (error) {
-    console.error('Error al generar certificado:', error);
-    res.status(500).json({ 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    console.error('Error detallado al generar el certificado de movilización:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ocurrió un error inesperado al generar el certificado. Por favor, contacte a soporte.',
+      error: error.message 
     });
   }
 };
