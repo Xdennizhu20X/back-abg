@@ -1,13 +1,12 @@
 require('dotenv').config();
 const https = require('https');
-const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
-const { syncDatabase, sequelize } = require('./config/database');
-const keepDatabaseAlive = require('./utils/dbKeepAlive');
+const { syncDatabase, sequelize } = require('./config/database'); 
+const keepDatabaseAlive = require('./utils/dbKeepAlive'); 
 
 
 const usuarioRoutes = require('./routes/usuarioRoutes');
@@ -24,8 +23,8 @@ const allowedOrigins = [
   'http://localhost:3001', //Local web
   'http://localhost:3000', //local web alternativa
   'https://movilizacion-animales.vercel.app', // Produccion movil
-
-
+   
+         
 ];
 
 app.use(cors({
@@ -78,20 +77,14 @@ const startServer = async () => {
     }
     const PORT = process.env.PORT || 3000;
 
-    if (process.env.NODE_ENV === 'production') {
-      const httpsOptions = {
-        key: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'key.pem')),
-        cert: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'cert.pem'))
-      };
+    const httpsOptions = {
+      key: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'key.pem')),
+      cert: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'cert.pem'))
+    };
 
-      https.createServer(httpsOptions, app).listen(PORT, () => {
-        console.log(`Servidor HTTPS corriendo en el puerto ${PORT}`);
-      });
-    } else {
-      http.createServer(app).listen(PORT, () => {
-        console.log(`Servidor HTTP corriendo en el puerto ${PORT}`);
-      });
-    }
+    https.createServer(httpsOptions, app).listen(PORT, () => {
+      console.log(`Servidor HTTPS corriendo en el puerto ${PORT}`);
+    });
   } catch (error) {
     console.error('No se pudo iniciar el servidor:', error);
     process.exit(1);
