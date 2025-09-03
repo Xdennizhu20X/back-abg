@@ -20,6 +20,9 @@ const allowedOrigins = [
   'http://localhost:3001', //Local web
   'http://localhost:3000', //local web alternativa
   'https://movilizacion-animales.vercel.app', // Produccion movil
+  'http://51.178.31.63:3001',
+  'http://51.178.31.63:8080/',
+
 
 
 ];
