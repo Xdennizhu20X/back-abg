@@ -26,6 +26,9 @@ const aprobarUsuario = async (req, res) => {
         path: path.join(__dirname, '..', 'utils', 'assets', 'nuevo_ecuador.png'),
         cid: 'nuevo_ecuador'
       }];
+      // Enmascarar la contraseña para mostrarla de forma segura
+      const maskedPassword = 'x'.repeat(usuario.password.length);
+
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
             <div style="text-align: center; margin-bottom: 20px;">
@@ -33,7 +36,12 @@ const aprobarUsuario = async (req, res) => {
             </div>
             <h2 style="color: #333; text-align: center;">¡Tu cuenta ha sido aprobada!</h2>
             <p>Hola ${usuario.nombre},</p>
-            <p>¡Buenas noticias! Un administrador ha aprobado tu cuenta. Ya puedes iniciar sesión en la plataforma con tu correo y contraseña.</p>
+            <p>¡Buenas noticias! Un administrador ha aprobado tu cuenta. Ya puedes iniciar sesión en la plataforma con las siguientes credenciales:</p>
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+              <p><strong>Correo:</strong> ${usuario.email}</p>
+              <p><strong>Contraseña:</strong> ${maskedPassword}</p>
+            </div>
+            <p><em>Por seguridad, tu contraseña se muestra enmascarada. Utiliza la contraseña que registraste originalmente.</em></p>
             <p>¡Gracias por unirte!</p>
             <p>Saludos,<br>El equipo de Soporte</p>
         </div>
