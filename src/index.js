@@ -19,12 +19,11 @@ const allowedOrigins = [
   'https://web-abg.vercel.app', // Producción web
   'http://localhost:3001', //Local web
   'http://localhost:3000', //local web alternativa
+  'http://localhost:4000', //Local web build
   'https://movilizacion-animales.vercel.app', // Produccion movil
   'http://51.178.31.63:3001',
+  'http://51.178.31.63:4000', // Puerto 4000 para build de producción
   'http://51.178.31.63:8080',
-
-
-
 ];
 
 app.use(cors({
