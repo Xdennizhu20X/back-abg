@@ -232,7 +232,10 @@ const getMovilizacionById = async (req, res) => {
 
 const filtrarMovilizaciones = async (req, res) => {
   try {
-    const { estado, nombre, fecha_inicio, fecha_fin } = req.query;
+    const { estado, nombre, fecha_inicio, fecha_fin, ci } = req.query;
+
+    console.log('🔍 === FILTRAR MOVILIZACIONES BACKEND ===');
+    console.log('📋 Query params recibidos:', { estado, nombre, fecha_inicio, fecha_fin, ci });
 
     const where = {};
     const usuarioWhere = {};
@@ -251,6 +254,15 @@ const filtrarMovilizaciones = async (req, res) => {
       };
     }
 
+    // Agregar filtro por CI
+    if (ci) {
+      usuarioWhere.ci = ci;
+      console.log('🔍 Filtrando por CI:', ci);
+    }
+
+    console.log('📊 Where clause para movilizaciones:', where);
+    console.log('👤 Where clause para usuario:', usuarioWhere);
+
     const movilizaciones = await Movilizacion.findAll({
       where,
       include: [
@@ -261,17 +273,35 @@ const filtrarMovilizaciones = async (req, res) => {
         { model: Predio, as: 'predio_destino' },
         {
           model: Usuario,
-          attributes: ['id', 'nombre', 'email'],
+          attributes: ['id', 'nombre', 'email', 'ci', 'telefono'],
           where: Object.keys(usuarioWhere).length ? usuarioWhere : undefined
         }
       ],
       order: [['fecha_solicitud', 'DESC']]
     });
 
-    res.json(movilizaciones);
+    console.log('📈 Total movilizaciones encontradas:', movilizaciones.length);
+    if (movilizaciones.length > 0) {
+      console.log('👤 Primer usuario encontrado:', {
+        ci: movilizaciones[0].Usuario?.ci,
+        nombre: movilizaciones[0].Usuario?.nombre
+      });
+    }
+
+    // Preparar respuesta en formato consistente
+    const response = {
+      success: true,
+      data: movilizaciones,
+      total: movilizaciones.length
+    };
+
+    res.json(response);
   } catch (error) {
-    console.error('Error al filtrar movilizaciones:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error al filtrar movilizaciones:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 };
 
