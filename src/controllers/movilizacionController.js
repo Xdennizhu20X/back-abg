@@ -556,6 +556,38 @@ const generarCertificadoMovilizacion = async (req, res) => {
   }
 };
 
+const getEstadisticasPorEstado = async (req, res) => {
+  try {
+    const estadisticas = await Movilizacion.findAll({
+      attributes: [
+        'estado',
+        [Movilizacion.sequelize.fn('COUNT', Movilizacion.sequelize.col('estado')), 'total']
+      ],
+      group: ['estado'],
+      raw: true
+    });
+
+    // Formatear datos para el gráfico de pastel
+    const datosGrafico = estadisticas.map(item => ({
+      estado: item.estado,
+      total: parseInt(item.total),
+      // Agregar colores para cada estado
+      color: item.estado === 'pendiente' ? '#fbbf24' :
+             item.estado === 'finalizado' ? '#10b981' :
+             item.estado === 'alerta' ? '#ef4444' : '#6b7280'
+    }));
+
+    res.json({ success: true, data: datosGrafico });
+  } catch (error) {
+    console.error('Error al obtener estadísticas por estado:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener estadísticas por estado',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registrarMovilizacionCompleta,
   getMovilizaciones,
@@ -565,5 +597,6 @@ module.exports = {
   getAnimalesByMovilizacionId,
   actualizarEstadoMovilizacion,
   actualizarEstadosAutomaticos,
-  generarCertificadoMovilizacion 
+  generarCertificadoMovilizacion,
+  getEstadisticasPorEstado
 };

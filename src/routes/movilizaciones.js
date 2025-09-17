@@ -9,7 +9,8 @@ const {
   getAnimalesByMovilizacionId,
   actualizarEstadoMovilizacion,
   actualizarEstadosAutomaticos,
-  generarCertificadoMovilizacion
+  generarCertificadoMovilizacion,
+  getEstadisticasPorEstado
 } = require('../controllers/movilizacionController');
 
 const { verificarToken, verificarRol } = require('../middleware/auth');
@@ -29,6 +30,9 @@ router.get('/', verificarToken, (req, res, next) => {
 
 // Contador de movilizaciones pendientes
 router.get('/pendientes/count', verificarToken, getTotalPendientes);
+
+// Estadísticas por estado para gráfico de pastel
+router.get('/estadisticas/estados', verificarToken, getEstadisticasPorEstado);
 
 // Filtrar movilizaciones
 router.get('/filtrar', verificarToken, filtrarMovilizaciones);
