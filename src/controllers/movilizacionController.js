@@ -97,139 +97,134 @@ const registrarMovilizacionCompleta = async (req, res) => {
 
       // 1. Notificación al usuario que registra
       if (solicitante) {
+        const pdfUrl = `http://51.178.31.63:3000/api/movilizaciones/${movilizacion.id}/certificado`;
         const userHtml = `
-          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: auto; background-color: #f8f9fa; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-              <img src="cid:nuevo_ecuador" alt="Logo ABG" style="width: 120px; margin-bottom: 10px;"/>
-              <h2 style="color: white; margin: 0; font-size: 24px;">¡Registro Exitoso!</h2>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo ABG" style="width: 100px;"/>
+              <h2 style="color: #333; margin-top: 20px;">Registro de Movilización Exitoso</h2>
             </div>
 
-            <!-- Body -->
-            <div style="padding: 30px; background-color: white;">
-              <p style="color: #4a5568; font-size: 16px; margin-bottom: 20px;">
-                Hola <strong>${solicitante.nombre}</strong>,
+            <p style="color: #555;">Hola ${solicitante.nombre},</p>
+
+            <p style="color: #555;">Tu solicitud de movilización ha sido registrada correctamente.</p>
+
+            <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 3px solid #6e328a;">
+              <p style="margin: 5px 0; color: #333;"><strong>ID Movilización:</strong> #${movilizacion.id}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Origen:</strong> ${origen.nombre}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Destino:</strong> ${destinoPredio.nombre}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString()}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Estado:</strong> PENDIENTE</p>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${pdfUrl}"
+                 target="_blank"
+                 style="display: inline-block; background-color: #6e328a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+                Descargar Certificado PDF
+              </a>
+            </div>
+
+            <div style="background-color: #f0f0f0; padding: 10px; margin: 20px 0; border-radius: 5px;">
+              <p style="color: #666; font-size: 13px; margin: 5px 0;">
+                <strong>Nota:</strong> Si el botón no funciona, copia este enlace en tu navegador:
               </p>
-
-              <p style="color: #4a5568; font-size: 15px; line-height: 1.6;">
-                Tu solicitud de movilización ha sido registrada correctamente con el siguiente detalle:
-              </p>
-
-              <!-- Detalles Card -->
-              <div style="background-color: #f7fafc; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 8px;">
-                <p style="margin: 5px 0; color: #2d3748;"><strong>🔢 ID Movilización:</strong> #${movilizacion.id}</p>
-                <p style="margin: 5px 0; color: #2d3748;"><strong>📍 Origen:</strong> ${origen.nombre}</p>
-                <p style="margin: 5px 0; color: #2d3748;"><strong>🎯 Destino:</strong> ${destinoPredio.nombre}</p>
-                <p style="margin: 5px 0; color: #2d3748;"><strong>📅 Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                <p style="margin: 5px 0; color: #2d3748;"><strong>🔄 Estado:</strong> <span style="background-color: #fbbf24; color: #78350f; padding: 2px 8px; border-radius: 4px; font-size: 12px;">PENDIENTE</span></p>
-              </div>
-
-              <!-- Botón CTA -->
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="http://51.178.31.63:3000/api/movilizaciones/${movilizacion.id}/certificado"
-                   style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);">
-                  📄 Descargar PDF
-                </a>
-              </div>
-
-              <p style="color: #718096; font-size: 14px; text-align: center; margin-top: 20px;">
-                Puedes hacer seguimiento del estado de tu solicitud en la plataforma web.
+              <p style="background-color: #fff; padding: 8px; border: 1px solid #ddd; font-family: monospace; font-size: 11px; word-break: break-all; margin: 5px 0;">
+                ${pdfUrl}
               </p>
             </div>
 
-            <!-- Footer -->
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="color: #718096; font-size: 13px; margin: 0;">
-                Agencia de Bioseguridad Galápagos<br>
-                Este es un correo automático, por favor no responder.
-              </p>
-            </div>
+            <p style="color: #777; font-size: 14px;">Puedes hacer seguimiento del estado de tu solicitud en la plataforma web.</p>
+
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+
+            <p style="color: #999; font-size: 12px; text-align: center;">
+              Agencia de Bioseguridad Galápagos<br>
+              Este es un correo automático, por favor no responder.
+            </p>
           </div>
         `;
-        await sendEmail(solicitante.email, `✅ Registro Exitoso - Movilización #${movilizacion.id}`, userHtml, attachments);
+        await sendEmail(solicitante.email, `Registro Exitoso - Movilización #${movilizacion.id}`, userHtml, attachments);
       }
 
       // 2. Notificación a los administradores
       const admins = await Usuario.findAll({ where: { rol: 'admin' } });
       if (admins && admins.length > 0) {
         const adminEmails = admins.map(admin => admin.email);
+        const pdfUrl = `http://51.178.31.63:3000/api/movilizaciones/${movilizacion.id}/certificado`;
+        const dashboardUrl = `http://51.178.31.63:3001/dashboard`;
+
         const adminHtml = `
-          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: auto; background-color: #f8f9fa; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%); padding: 30px; text-align: center;">
-              <img src="cid:nuevo_ecuador" alt="Logo ABG" style="width: 120px; margin-bottom: 10px;"/>
-              <h2 style="color: white; margin: 0; font-size: 24px;">⚠️ Nueva Movilización para Revisión</h2>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="cid:nuevo_ecuador" alt="Logo ABG" style="width: 100px;"/>
+              <h2 style="color: #333; margin-top: 20px;">Nueva Movilización para Revisión</h2>
             </div>
 
-            <!-- Body -->
-            <div style="padding: 30px; background-color: white;">
-              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
-                <p style="color: #92400e; font-size: 14px; margin: 0;">
-                  <strong>Acción requerida:</strong> Se ha registrado una nueva solicitud de movilización que requiere revisión.
-                </p>
-              </div>
-
-              <!-- Información del Solicitante -->
-              <div style="margin-bottom: 25px;">
-                <h3 style="color: #1f2937; font-size: 16px; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px;">
-                  👤 Información del Solicitante
-                </h3>
-                <p style="margin: 5px 0; color: #4b5563;"><strong>Nombre:</strong> ${solicitante ? solicitante.nombre : 'N/A'}</p>
-                <p style="margin: 5px 0; color: #4b5563;"><strong>Email:</strong> ${solicitante ? solicitante.email : 'N/A'}</p>
-                <p style="margin: 5px 0; color: #4b5563;"><strong>Rol:</strong> ${solicitante ? solicitante.rol : 'N/A'}</p>
-              </div>
-
-              <!-- Detalles de la Movilización -->
-              <div style="margin-bottom: 25px;">
-                <h3 style="color: #1f2937; font-size: 16px; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px;">
-                  📋 Detalles de la Movilización
-                </h3>
-                <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px;">
-                  <p style="margin: 8px 0; color: #4b5563;"><strong>🔢 ID Movilización:</strong> #${movilizacion.id}</p>
-                  <p style="margin: 8px 0; color: #4b5563;"><strong>📍 Origen:</strong> ${origen.nombre} (${origen.localidad || 'N/A'}, ${origen.parroquia || 'N/A'})</p>
-                  <p style="margin: 8px 0; color: #4b5563;"><strong>🎯 Destino:</strong> ${destinoPredio.nombre} (${destinoPredio.parroquia || 'N/A'}, ${destinoPredio.ubicacion || 'N/A'})</p>
-                  <p style="margin: 8px 0; color: #4b5563;"><strong>📅 Fecha Solicitud:</strong> ${new Date(fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p style="margin: 8px 0; color: #4b5563;"><strong>🔄 Estado:</strong> <span style="background-color: #fbbf24; color: #78350f; padding: 2px 8px; border-radius: 4px; font-size: 12px;">PENDIENTE DE REVISIÓN</span></p>
-                </div>
-              </div>
-
-              <!-- Botones de Acción -->
-              <div style="text-align: center; margin: 30px 0;">
-                <table cellspacing="0" cellpadding="0" style="margin: 0 auto;">
-                  <tr>
-                    <td style="padding: 0 10px;">
-                      <a href="http://51.178.31.63:3000/api/movilizaciones/${movilizacion.id}/certificado"
-                         style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.3);">
-                        📄 Ver PDF
-                      </a>
-                    </td>
-                    <td style="padding: 0 10px;">
-                      <a href="http://51.178.31.63:3001/dashboard"
-                         style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);">
-                        🖥️ Ir al Panel
-                      </a>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-
-              <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin-top: 20px; border-radius: 8px;">
-                <p style="color: #1e40af; font-size: 13px; margin: 0;">
-                  <strong>Recordatorio:</strong> Las solicitudes deben ser revisadas dentro de las 72 horas para evitar su cancelación automática.
-                </p>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="color: #718096; font-size: 13px; margin: 0;">
-                Agencia de Bioseguridad Galápagos - Sistema de Administración<br>
-                Este es un correo automático del sistema.
+            <div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-bottom: 20px;">
+              <p style="color: #856404; margin: 0;">
+                <strong>Acción requerida:</strong> Nueva solicitud de movilización pendiente de revisión.
               </p>
             </div>
+
+            <h3 style="color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Información del Solicitante</h3>
+            <p style="color: #333; margin: 5px 0;"><strong>Nombre:</strong> ${solicitante ? solicitante.nombre : 'N/A'}</p>
+            <p style="color: #333; margin: 5px 0;"><strong>Email:</strong> ${solicitante ? solicitante.email : 'N/A'}</p>
+            <p style="color: #333; margin: 5px 0;"><strong>Rol:</strong> ${solicitante ? solicitante.rol : 'N/A'}</p>
+
+            <h3 style="color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 20px;">Detalles de la Movilización</h3>
+            <div style="background-color: #f5f5f5; padding: 15px; margin: 10px 0;">
+              <p style="margin: 5px 0; color: #333;"><strong>ID Movilización:</strong> #${movilizacion.id}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Origen:</strong> ${origen.nombre} (${origen.localidad || 'N/A'}, ${origen.parroquia || 'N/A'})</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Destino:</strong> ${destinoPredio.nombre} (${destinoPredio.parroquia || 'N/A'}, ${destinoPredio.ubicacion || 'N/A'})</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Fecha Solicitud:</strong> ${new Date(fecha).toLocaleDateString()}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Estado:</strong> PENDIENTE DE REVISIÓN</p>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <table cellspacing="0" cellpadding="0" style="margin: 0 auto;">
+                <tr>
+                  <td style="padding: 0 10px;">
+                    <a href="${pdfUrl}"
+                       target="_blank"
+                       style="display: inline-block; background-color: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px;">
+                      Ver PDF
+                    </a>
+                  </td>
+                  <td style="padding: 0 10px;">
+                    <a href="${dashboardUrl}"
+                       target="_blank"
+                       style="display: inline-block; background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px;">
+                      Ir al Panel
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="background-color: #f0f0f0; padding: 10px; margin: 20px 0; border-radius: 5px;">
+              <p style="color: #666; font-size: 12px; margin: 5px 0;">
+                <strong>Enlaces alternativos (si los botones no funcionan):</strong>
+              </p>
+              <p style="margin: 5px 0; color: #555; font-size: 12px;">PDF: ${pdfUrl}</p>
+              <p style="margin: 5px 0; color: #555; font-size: 12px;">Panel: ${dashboardUrl}</p>
+            </div>
+
+            <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 10px; margin: 20px 0;">
+              <p style="color: #0c5460; margin: 0; font-size: 13px;">
+                <strong>Recordatorio:</strong> Las solicitudes deben ser revisadas dentro de las 72 horas para evitar su cancelación automática.
+              </p>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+
+            <p style="color: #999; font-size: 12px; text-align: center;">
+              Agencia de Bioseguridad Galápagos - Sistema de Administración<br>
+              Este es un correo automático del sistema.
+            </p>
           </div>
         `;
-        await sendEmail(adminEmails, `🔔 Nueva Movilización para Revisión - #${movilizacion.id}`, adminHtml, attachments);
+        await sendEmail(adminEmails, `Nueva Movilización para Revisión - #${movilizacion.id}`, adminHtml, attachments);
       }
 
     } catch (emailError) {
